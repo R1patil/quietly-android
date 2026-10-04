@@ -218,14 +218,6 @@ WhatsApp Web    Gmail        YouTube            Quietly AI Keyboard      Clean Y
 - **Root Cause**: The manifest referenced `@android:drawable/sym_def_app_icon`, an internal AOSP resource that OEM ROMs (like Vivo Funtouch OS) omit or restrict.
 - **Solution**: Created a dedicated vector icon [`res/drawable/ic_launcher.xml`](file:///d:/MIT/quietly-android/app/src/main/res/drawable/ic_launcher.xml) and referenced `@drawable/ic_launcher` in the manifest.
 
-<p align="center">
-  <img src="docs/images/vivo_software_info_1.png" alt="Vivo Hardware Specifications" width="260"/>
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="docs/images/vivo_software_info_2.png" alt="Vivo Software Build Information" width="260"/>
-  <br/>
-  <em>Figure 5.2: Physical Lab Benchmark Device Specifications (Vivo V2060 / Funtouch OS 13)</em>
-</p>
-
 ### 5.5 Security Hardening & Google Play Protect Compliance
 - **Problem**: Google Play Protect triggered a false-positive heuristic block warning users when sideloading the APK.
 - **Root Cause**: The presence of `BIND_NOTIFICATION_LISTENER_SERVICE` in the manifest triggered Google's financial fraud / SMS sniffer heuristic.
