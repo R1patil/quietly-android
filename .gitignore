@@ -1,0 +1,24 @@
+# Built application binaries
+*.apk.idsig
+
+# Gradle cache & build files
+.gradle/
+build/
+*/build/
+app/build/
+quietly-android/app/build/
+quietly-android/.gradle/
+
+# Android Studio / IntelliJ IDE files
+.idea/
+*.iml
+*/.idea/
+quietly-android/.idea/
+
+# Local SDK and keystore paths
+local.properties
+*/local.properties
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Quietly Keyboard</string>
+    <string name="ime_name">Quietly AI Keyboard</string>
+    <string name="subtype_en_us">English (US)</string>
+    <string name="groq_api_key_hint">Paste Groq API Key (gsk_...)</string>
+    <string name="btn_enable_keyboard">1. Enable Keyboard in Settings</string>
+    <string name="btn_select_keyboard">2. Select Quietly as Active Input</string>
+    <string name="btn_save_key">Save Key &amp; Test</string>
+    <string name="notification_permission_btn">Enable WhatsApp Context Reader</string>
+</resources>

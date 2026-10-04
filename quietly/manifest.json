@@ -1,0 +1,83 @@
+{
+  "manifest_version": 3,
+  "name": "Quietly",
+  "version": "0.1.0",
+  "description": "Reply suggestions for WhatsApp Web and Gmail, and a quieter YouTube feed. Your own OpenRouter key. Suggests only; you send.",
+  "minimum_chrome_version": "140",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://openrouter.ai/*",
+    "https://api.groq.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://web.whatsapp.com/*"
+      ],
+      "js": [
+        "bridge.js"
+      ],
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://web.whatsapp.com/*"
+      ],
+      "js": [
+        "wa.js",
+        "ui.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://mail.google.com/*"
+      ],
+      "js": [
+        "gmail.js",
+        "ui.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/*"
+      ],
+      "js": [
+        "yt.js"
+      ],
+      "css": [
+        "yt.css"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "action": {
+    "default_title": "Quietly settings",
+    "default_popup": "options.html?popup",
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png"
+    }
+  },
+  "commands": {
+    "suggest": {
+      "suggested_key": {
+        "default": "Alt+Shift+S",
+        "mac": "MacCtrl+Shift+S"
+      },
+      "description": "Suggest replies"
+    }
+  },
+  "options_page": "options.html"
+}

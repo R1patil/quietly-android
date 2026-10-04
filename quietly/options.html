@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quietly settings</title>
+<style>
+  /* Your shadcn theme tokens, verbatim (no Tailwind build: plain CSS variables + small component classes). */
+  :root {
+    color-scheme: light;
+    --background: oklch(0.9605 0.0046 258.3248); --foreground: oklch(0.2153 0.0187 235.1251);
+    --card: oklch(1.0000 0 0); --card-foreground: oklch(0.2153 0.0187 235.1251);
+    --primary: oklch(0.4335 0.0754 182.2315); --primary-foreground: oklch(1.0000 0 0);
+    --secondary: oklch(0.9644 0.0208 166.1014); --secondary-foreground: oklch(0.4335 0.0754 182.2315);
+    --muted: oklch(0.9605 0.0046 258.3248); --muted-foreground: oklch(0.5589 0.0255 233.7233);
+    --accent: oklch(0.7610 0.2015 149.7403); --accent-foreground: oklch(1.0000 0 0);
+    --destructive: oklch(0.6257 0.2058 29.0773); --destructive-foreground: oklch(1.0000 0 0);
+    --border: oklch(0.9436 0.0051 228.8204); --input: oklch(0.9436 0.0051 228.8204); --ring: oklch(0.7610 0.2015 149.7403);
+    --font-sans: "Segoe UI", "Helvetica Neue", Helvetica, "Lucida Grande", Arial, Ubuntu, Cantarell, "Fira Sans", -apple-system, sans-serif;
+    --font-mono: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --radius: 1rem;
+    --radius-sm: calc(var(--radius) - 4px); --radius-md: calc(var(--radius) - 2px); --radius-lg: var(--radius);
+    --shadow-sm: 0px 2px 10px 0px hsl(0 0% 0% / 0.10), 0px 1px 2px -1px hsl(0 0% 0% / 0.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --background: oklch(0.1854 0.0182 238.2143); --foreground: oklch(0.9436 0.0051 228.8204);
+      --card: oklch(0.2848 0.0230 235.6578); --card-foreground: oklch(0.9436 0.0051 228.8204);
+      --primary: oklch(0.6509 0.1283 170.4258); --primary-foreground: oklch(0.2153 0.0187 235.1251);
+      --secondary: oklch(0.2933 0.0423 172.8195); --secondary-foreground: oklch(0.6509 0.1283 170.4258);
+      --muted: oklch(0.2456 0.0195 239.1061); --muted-foreground: oklch(0.6637 0.0236 235.1968);
+      --accent: oklch(0.7610 0.2015 149.7403); --accent-foreground: oklch(0.2153 0.0187 235.1251);
+      --destructive-foreground: oklch(0.9436 0.0051 228.8204);
+      --border: oklch(0.3351 0.0253 234.8586); --input: oklch(0.3351 0.0253 234.8586); --ring: oklch(0.6509 0.1283 170.4258);
+      --shadow-sm: 0px 4px 12px 0px hsl(0 0% 0% / 0.40), 0px 1px 2px -1px hsl(0 0% 0% / 0.40);
+    }
+  }
+  * { box-sizing: border-box; border-color: var(--border); }
+  [hidden] { display: none !important; }
+  body { margin: 0; min-width: 440px; background: var(--background); color: var(--foreground);
+    font: 14px/1.5 var(--font-sans); -webkit-font-smoothing: antialiased; }
+  main { max-width: 760px; margin: 0 auto; padding: 12px 14px 20px; display: grid; gap: 12px; }
+  code { font: 12px var(--font-mono); background: var(--muted); padding: 1px 5px; border-radius: 6px; }
+
+  /* header */
+  .head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+    background: color-mix(in oklch, var(--background) 85%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+  .logo { width: 32px; height: 32px; display: block; flex: none; border-radius: 9px; font-size: 16px;
+    background: var(--primary); color: var(--primary-foreground); }
+  .head h1 { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.2; }
+  .head p { margin: 0; font-size: 12px; color: var(--muted-foreground); }
+  .head .badge { margin-left: auto; }
+
+  /* card */
+  .card { background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm); padding: 16px; display: grid; gap: 10px; }
+  .card h2 { margin: 0; font-size: 14px; font-weight: 600; }
+  .desc { margin: -6px 0 0; font-size: 13px; color: var(--muted-foreground); }
+  .meta, small { font-size: 12.5px; color: var(--muted-foreground); }
+  .field { display: grid; gap: 6px; }
+  label, .label { font-size: 13px; font-weight: 500; }
+
+  /* input */
+  input[type=password], input[type=text], textarea { width: 100%; font: inherit; color: inherit; background: transparent;
+    border: 1px solid var(--input); border-radius: var(--radius-md); padding: 7px 12px; transition: border-color .12s, box-shadow .12s; }
+  input[type=password], input[type=text] { height: 36px; }
+  textarea { resize: vertical; min-height: 72px; line-height: 1.45; }
+  input::placeholder, textarea::placeholder { color: var(--muted-foreground); }
+  :focus-visible { outline: none; }
+  input:focus-visible, textarea:focus-visible, button:focus-visible, summary:focus-visible, .btn:focus-within {
+    border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent); }
+  .with-icon { position: relative; }
+  .with-icon input { padding-right: 40px; }
+  .with-icon .icon { position: absolute; right: 4px; top: 4px; }
+
+  /* button */
+  button, .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 34px; padding: 0 14px;
+    font: inherit; font-size: 13px; font-weight: 500; border-radius: var(--radius-md); border: 1px solid var(--border);
+    background: var(--card); color: var(--card-foreground); cursor: pointer; white-space: nowrap; transition: background-color .12s, color .12s, border-color .12s; }
+  button:hover, .btn:hover { background: var(--muted); }
+  .primary { background: var(--primary); color: var(--primary-foreground); border-color: transparent; }
+  .primary:hover { background: color-mix(in oklch, var(--primary) 88%, black); }
+  .danger { color: var(--destructive); border-color: color-mix(in srgb, var(--destructive) 40%, transparent); }
+  .danger:hover { background: color-mix(in oklch, var(--destructive) 10%, transparent); }
+  .icon { width: 28px; height: 28px; padding: 0; border: 0; background: transparent; color: var(--muted-foreground); border-radius: var(--radius-sm); }
+  .icon:hover { background: var(--muted); color: var(--card-foreground); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .btn input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+
+  /* badge */
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+    background: var(--secondary); color: var(--secondary-foreground); white-space: nowrap; }
+  .badge.ok { background: color-mix(in oklch, var(--accent) 20%, transparent); color: var(--card-foreground); }
+  .badge.bad { background: color-mix(in oklch, var(--destructive) 14%, transparent); color: var(--destructive); }
+  .badge.muted { background: var(--muted); color: var(--muted-foreground); border: 1px solid var(--border); }
+  .saved { justify-self: start; font-size: 11.5px; font-weight: 500; color: color-mix(in oklch, var(--accent) 70%, var(--card-foreground)); min-height: 0; }
+  .saved:empty { display: none; }
+  .saved.err { color: var(--destructive); }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  /* lists */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .chips li { padding: 3px 10px; border-radius: 999px; background: var(--muted); color: var(--muted-foreground); font-size: 12.5px; border: 1px solid var(--border); }
+  .facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .facts li { display: flex; align-items: flex-start; gap: 8px; padding: 6px 4px 6px 10px; border-radius: var(--radius-sm); }
+  .facts li:hover { background: var(--muted); }
+  .facts .text { flex: 1; font-size: 13px; }
+  .facts small { display: block; }
+  .facts .icon { width: 24px; height: 24px; flex: none; }
+
+  /* accordion */
+  #contacts { display: grid; gap: 8px; }
+  details { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--card); }
+  summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; border-radius: var(--radius-md); }
+  summary::-webkit-details-marker { display: none; }
+  summary:hover { background: var(--muted); }
+  summary .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  summary .meta { margin-left: auto; white-space: nowrap; }
+  summary::after { content: ""; width: 7px; height: 7px; flex: none; border-right: 1.5px solid var(--muted-foreground); border-bottom: 1.5px solid var(--muted-foreground);
+    transform: rotate(45deg) translateY(-2px); transition: transform .15s; }
+  details[open] summary::after { transform: rotate(225deg) translateY(-1px); }
+  details[open] summary { border-bottom: 1px solid var(--border); border-radius: var(--radius-md) var(--radius-md) 0 0; }
+  .panel { padding: 12px; display: grid; gap: 10px; }
+
+  .empty, .callout { border: 1px dashed var(--border); border-radius: var(--radius-md); padding: 14px; text-align: center; font-size: 13px; color: var(--muted-foreground); background: var(--muted); }
+  .callout { text-align: left; font-size: 12.5px; line-height: 1.5; }
+  /* setup */
+  body.setup .after-setup { display: none !important; }
+  body:not(.setup) #setup { display: none; }
+  .steps { display: flex; gap: 6px; }
+  .step { flex: 1; display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: var(--radius-sm); font-size: 12px;
+    font-weight: 600; color: var(--muted-foreground); background: var(--muted); }
+  .step b { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font-size: 11px; background: var(--card); border: 1px solid var(--border); }
+  .step.done b { background: var(--accent); color: var(--accent-foreground); border-color: transparent; }
+  .step.now { color: var(--card-foreground); background: var(--secondary); }
+  .seg { display: flex; flex-wrap: wrap; gap: 4px; }
+  .seg button { height: 30px; padding: 0 10px; font-size: 12.5px; }
+  .seg button[aria-pressed="true"] { background: var(--primary); color: var(--primary-foreground); border-color: transparent; }
+  .sample { display: grid; gap: 4px; padding: 10px; border-radius: var(--radius-md); background: var(--muted); }
+  .bubble { max-width: 80%; padding: 6px 10px; border-radius: 12px; font-size: 13px; background: var(--card); border: 1px solid var(--border); justify-self: start; }
+  .bubble.me { justify-self: end; background: var(--secondary); color: var(--secondary-foreground); border-color: transparent; }
+  .demo-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .demo-chips span { padding: 5px 12px; border-radius: 999px; font-size: 13px; background: var(--secondary); color: var(--secondary-foreground); }
+  .link { background: none; border: 0; height: auto; padding: 0; color: var(--muted-foreground); text-decoration: underline; font-weight: 400; justify-self: center; }
+  .link:hover { background: none; color: var(--card-foreground); }
+
+  /* stats */
+  .tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .tile { padding: 10px 12px; border-radius: var(--radius-md); background: var(--muted); border: 1px solid var(--border); }
+  .tile strong { display: block; font-size: 20px; line-height: 1.2; }
+  .tile span { font-size: 12px; color: var(--muted-foreground); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="head">
+  <img class="logo" src="icons/logo.svg" alt="" aria-hidden="true">
+  <div><h1>Quietly</h1><p>Suggests replies, quiets YouTube. You send.</p></div>
+  <span id="keyBadge" class="badge muted">No key</span>
+</header>
+<main>
+  <section class="card" aria-label="YouTube">
+    <h2>YouTube</h2>
+    <p class="desc">Hides Shorts, games, and videos that aren't informational or productive on Home, search and the sidebar. Your model judges each video once and remembers it, until you switch model. The spend shows in This week.</p>
+    <div class="row"><button id="ytToggle" type="button" aria-pressed="true">On</button><span class="meta">Open YouTube tabs update right away.</span></div>
+    <div class="field">
+      <label for="ytModel">Model for sorting videos</label>
+      <input id="ytModel" type="text" spellcheck="false" list="ytModels" autocomplete="off">
+      <datalist id="ytModels"></datalist>
+    </div>
+    <p id="ytLast" class="meta" style="margin:0"></p>
+    <p class="meta" style="margin:0">Jev (latest) is a decision model: it answers keep or hide for each video and is the cheapest choice. Jev Router is different: it hands each batch to the cheapest model it thinks is good enough (often DeepSeek), so "answered by" can differ.</p>
+  </section>
+
+  <section id="setup" class="card" aria-label="Setup">
+    <h2>Set up in 3 steps</h2>
+    <div class="steps">
+      <div class="step" data-step="1"><b>1</b>Key</div>
+      <div class="step" data-step="2"><b>2</b>Style</div>
+      <div class="step" data-step="3"><b>3</b>Try it</div>
+    </div>
+    <div data-pane="1" class="field">
+      <p class="desc" style="margin:0">Paste your <strong>Groq API key</strong> (free at console.groq.com) or OpenRouter key below and press <strong>Test key</strong>.</p>
+    </div>
+    <div data-pane="2" class="field" hidden>
+      <p class="desc" style="margin:0">How should your replies sound? You can fine-tune the words later.</p>
+      <span class="label">Language</span><div class="seg" data-preset="language"></div>
+      <span class="label">Length</span><div class="seg" data-preset="length"></div>
+      <span class="label">Emoji</span><div class="seg" data-preset="emoji"></div>
+      <span class="label">Tone</span><div class="seg" data-preset="tone"></div>
+      <div class="row"><button id="stylesNext" class="primary" type="button">Next</button></div>
+    </div>
+    <div data-pane="3" class="field" hidden>
+      <p class="desc" style="margin:0">A sample chat. Press Suggest to see real replies from your key and style.</p>
+      <div id="sample" class="sample"></div>
+      <div id="demoChips" class="demo-chips"></div>
+      <span id="demoInfo" class="meta"></span>
+      <div class="row"><button id="demo" type="button">✨ Suggest</button><button id="setupDone" class="primary" type="button">Done</button></div>
+    </div>
+  </section>
+
+  <section class="card after-setup" aria-label="This week">
+    <h2>This week</h2>
+    <div id="week" class="tiles"></div>
+    <p class="meta" style="margin:0">Counted on this computer only. Time saved is an estimate (20 s per reply).</p>
+  </section>
+
+  <section class="card">
+    <h2 id="providerTitle">Groq / OpenRouter</h2>
+    <p class="desc">Supports <strong>Groq API key</strong> (free & fast from console.groq.com) or <strong>OpenRouter</strong>.</p>
+    <div class="field">
+      <label for="apiKey">API key</label>
+      <div class="with-icon">
+        <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="gsk_… or sk-or-v1-…">
+        <button id="reveal" class="icon" type="button" title="Show key" aria-label="Show key">👁</button>
+      </div>
+    </div>
+    <div class="row"><button id="test" class="primary" type="button">Test key</button><span id="keyInfo" class="meta"></span></div>
+    <div class="field">
+      <label for="model">Model for replies</label>
+      <input id="model" type="text" spellcheck="false" list="models" autocomplete="off">
+      <datalist id="models"></datalist>
+      <span id="modelInfo" class="meta"></span>
+      <div id="modelPills" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;"></div>
+    </div>
+    <p class="meta" style="margin:0">Click the field for the list, type to search. Fallback when it fails: <code>mistralai/mistral-small-2603</code>. Thinking is always off.</p>
+  </section>
+
+  <section class="card after-setup">
+    <h2>Style guide</h2>
+    <p class="desc">How replies should sound everywhere: tone, length, emoji, languages, things never to say.</p>
+    <label for="styleGuide">WhatsApp</label>
+    <textarea id="styleGuide" rows="4" maxlength="1500" aria-label="Style guide"></textarea>
+    <label for="styleGuideMail">Gmail</label>
+    <textarea id="styleGuideMail" rows="3" maxlength="1500" aria-label="Email style guide"></textarea>
+  </section>
+
+  <section class="card after-setup">
+    <h2>Learned style</h2>
+    <p class="desc">Learned automatically from your own messages in chats and email threads where you use ✨.</p>
+    <span class="label">WhatsApp</span>
+    <div id="stats" class="badges"></div>
+    <ul id="bank" class="chips"></ul>
+    <div class="row"><button id="clearStyle" type="button">Clear learned style</button></div>
+    <span class="label">Gmail</span>
+    <div id="statsMail" class="badges"></div>
+    <ul id="bankMail" class="chips"></ul>
+    <div class="row"><button id="clearStyleMail" type="button">Clear learned email style</button></div>
+  </section>
+
+  <section class="card after-setup">
+    <h2>Contacts</h2>
+    <p class="desc">Notes are yours. Facts are learned in 1:1 chats and one-to-one email threads, each from a message you can check.</p>
+    <div id="contacts"></div>
+  </section>
+
+  <section class="card after-setup">
+    <h2>Backup</h2>
+    <p class="desc">Export leaves out your API key.</p>
+    <div class="row">
+      <button id="export" type="button">Export JSON</button>
+      <label class="btn">Import JSON<input id="import" type="file" accept="application/json,.json"></label>
+      <span id="io" class="meta"></span>
+    </div>
+  </section>
+
+  <button id="rerunSetup" class="link after-setup" type="button">Run setup again</button>
+  <p class="callout"><strong>Privacy.</strong> When you press ✨, that chat's recent messages (or, on Gmail, the email thread you're replying to) go to OpenRouter and the model provider (no longer end-to-end encrypted), with that contact's notes and facts, your style guide, anything typed in the message box or the ✨ prompt, and a few short messages of yours from other ✨ chats as style examples. While YouTube cleaning is on, the titles and channel names of videos on your Home, search and sidebar go there too. Everything else stays in this Chrome profile. Your key is stored here in plain text: use a dedicated key with a credit limit.</p>
+</main>
+<script type="module" src="options.js"></script>
+</body>
+</html>

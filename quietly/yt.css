@@ -1,0 +1,32 @@
+/* Quietly on YouTube. yt.js sets data-wa-clean while the switch in settings is on,
+   and data-wa-feed on the pages it filters (home, watch sidebar, search). */
+html[data-wa-clean] {
+  /* Shorts */
+  & ytd-rich-section-renderer:has(ytd-rich-shelf-renderer[is-shorts]),
+  & ytd-reel-shelf-renderer,
+  & grid-shelf-view-model:has(ytm-shorts-lockup-view-model-v2, a[href^="/shorts/"]),
+  & ytm-shorts-lockup-view-model-v2,
+  & ytd-rich-item-renderer:has(a[href*="/shorts/"]),
+  & ytd-video-renderer:has(a[href*="/shorts/"]),
+  & ytd-guide-entry-renderer:has(a[href*="/shorts"], a[title="Shorts"]),
+  & ytd-mini-guide-entry-renderer:has(a[href*="/shorts"], [aria-label*="Shorts" i]),
+  /* Games: Playables shelf and cards, Gaming in the menu, game topic chips (yt.js marks those) */
+  & ytd-rich-section-renderer:has(a[href^="/playables"]),
+  & ytd-rich-item-renderer:has(ytd-mini-game-card-view-model),
+  & ytd-guide-entry-renderer:has(a[href^="/playables"], a[href="/gaming"], a[title="Gaming"]),
+  & ytd-mini-guide-entry-renderer:has(a[href="/gaming"]),
+  & [data-wa-game],
+  /* Videos judged junk, or still waiting for a verdict */
+  &[data-wa-feed] [data-wa-yt="junk"],
+  &[data-wa-feed] [data-wa-yt="wait"] {
+    display: none !important;
+  }
+  /* Kept videos fade in instead of popping in when their verdict arrives */
+  &[data-wa-feed] [data-wa-yt="ok"] {
+    animation: wa-in .2s ease-out;
+  }
+}
+
+@keyframes wa-in {
+  from { opacity: 0; }
+}
