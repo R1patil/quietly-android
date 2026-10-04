@@ -231,13 +231,6 @@ WhatsApp Web    Gmail        YouTube            Quietly AI Keyboard      Clean Y
 - **Root Cause**: The presence of `BIND_NOTIFICATION_LISTENER_SERVICE` in the manifest triggered Google's financial fraud / SMS sniffer heuristic.
 - **Solution**: Removed the notification listener service from the manifest. The keyboard functions cleanly and safely without requiring high-risk system permissions.
 - **Dual Signing**: The APK is signed with both v1 (JAR signing) and v2 (Full APK Signature Scheme) for cross-platform integrity verification.
-- **Enterprise MDM Compliance Isolation**: While consumer Android sideloading operates autonomously, enterprise-managed mobile environments enforce automated Intune/MDM patch compliance (e.g., requiring May 2026 security patches). Quietly Mobile operates entirely self-contained with local processing and direct Groq API calls, preventing any conflict with corporate Microsoft 365 or device management policies.
-
-<p align="center">
-  <img src="docs/images/enterprise_compliance_notice.png" alt="Enterprise MDM Device Compliance Notice" width="460"/>
-  <br/>
-  <em>Figure 5.3: Enterprise Intune Security Patch Compliance Architecture & Device Management Notice</em>
-</p>
 
 ---
 
