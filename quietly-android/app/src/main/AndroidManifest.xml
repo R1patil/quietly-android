@@ -3,6 +3,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:allowBackup="true"
@@ -34,6 +36,31 @@
             <meta-data
                 android:name="android.view.im"
                 android:resource="@xml/method" />
+        </service>
+
+        <!-- WhatsApp & Messaging Notification Listener Service -->
+        <service
+            android:name=".WhatsAppNotificationService"
+            android:label="Quietly WhatsApp Context Reader"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Real-Time Chat Screen Accessibility Reader -->
+        <service
+            android:name=".QuietlyAccessibilityService"
+            android:label="Quietly Live Chat Context Reader"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
         </service>
 
         <!-- Clean YouTube Activity -->

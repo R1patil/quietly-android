@@ -1,5 +1,7 @@
 package com.quietly.keyboard;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.inputmethodservice.InputMethodService;
@@ -15,7 +17,7 @@ import androidx.core.content.ContextCompat;
 
 import java.util.List;
 
-public class QuietlyInputMethodService extends InputMethodService implements KeyboardLayoutHelper.KeyListener {
+public class QuietlyInputMethodService extends InputMethodService implements KeyboardLayoutHelper.KeyListener, VoiceInputHelper.VoiceCallback {
 
     private static final String PREFS_SETTINGS = "quietly_settings";
     private static final String KEY_API_KEY = "groq_api_key";
@@ -27,14 +29,17 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
     private LinearLayout chipsContainer;
     private TextView btnTone;
     private TextView btnAiSuggest;
+    private TextView btnVoice;
 
     private GroqClient groqClient;
     private KeyboardLayoutHelper layoutHelper;
+    private VoiceInputHelper voiceInputHelper;
 
     @Override
     public void onCreate() {
         super.onCreate();
         groqClient = new GroqClient();
+        voiceInputHelper = new VoiceInputHelper(this, this);
     }
 
     @Override
@@ -44,11 +49,16 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         chipsContainer = view.findViewById(R.id.chips_container);
         btnTone = view.findViewById(R.id.btn_tone);
         btnAiSuggest = view.findViewById(R.id.btn_ai_suggest);
+        btnVoice = view.findViewById(R.id.btn_voice);
 
         btnTone.setText(TONES[currentToneIndex]);
         btnTone.setOnClickListener(v -> cycleTone());
 
         btnAiSuggest.setOnClickListener(v -> triggerAiSuggestions(false));
+
+        if (btnVoice != null) {
+            btnVoice.setOnClickListener(v -> toggleVoiceInput());
+        }
 
         LinearLayout row1 = view.findViewById(R.id.row1);
         LinearLayout row2 = view.findViewById(R.id.row2);
@@ -64,19 +74,60 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
     @Override
     public void onStartInputView(EditorInfo info, boolean restarting) {
         super.onStartInputView(info, restarting);
-        // If there's a fresh WhatsApp notification, show ready prompt
-        String recentIncoming = WhatsAppNotificationService.getRecentIncomingMessage(this);
-        if (!recentIncoming.isEmpty() && chipsContainer != null && chipsContainer.getChildCount() == 0) {
-            btnAiSuggest.setText("✨ Reply: " + recentIncoming.substring(0, Math.min(18, recentIncoming.length())) + "…");
+
+        // Fetch best live or notification context
+        String context = getBestAvailableContext();
+        if (!context.isEmpty() && chipsContainer != null && chipsContainer.getChildCount() == 0) {
+            String preview = context.length() > 18 ? context.substring(0, 18) + "…" : context;
+            btnAiSuggest.setText("✨ Reply: \"" + preview + "\"");
         } else if (btnAiSuggest != null) {
             btnAiSuggest.setText("✨ Suggest");
         }
+    }
+
+    private String getBestAvailableContext() {
+        // Priority 1: Real-time on-screen chat context via Accessibility
+        String liveChat = QuietlyAccessibilityService.getLiveChatContext(this);
+        if (!liveChat.isEmpty()) {
+            return liveChat;
+        }
+
+        // Priority 2: WhatsApp / Telegram incoming notification
+        String notifMsg = WhatsAppNotificationService.getRecentIncomingMessage(this);
+        if (!notifMsg.isEmpty()) {
+            return notifMsg;
+        }
+
+        // Priority 3: System clipboard if user copied something recently
+        try {
+            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            if (cm != null && cm.hasPrimaryClip()) {
+                ClipData clip = cm.getPrimaryClip();
+                if (clip != null && clip.getItemCount() > 0) {
+                    CharSequence text = clip.getItemAt(0).getText();
+                    if (text != null && text.length() > 0 && text.length() < 300) {
+                        return text.toString().trim();
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
+        return "";
     }
 
     private void cycleTone() {
         currentToneIndex = (currentToneIndex + 1) % TONES.length;
         btnTone.setText(TONES[currentToneIndex]);
         triggerAiSuggestions(true);
+    }
+
+    private void toggleVoiceInput() {
+        if (voiceInputHelper.isListening()) {
+            voiceInputHelper.stopListening();
+        } else {
+            String lang = (layoutHelper != null) ? layoutHelper.getCurrentLanguageCode() : "en";
+            voiceInputHelper.startListening(lang);
+        }
     }
 
     private void triggerAiSuggestions(boolean isToneChange) {
@@ -96,13 +147,14 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
             if (textBefore != null) draft = textBefore.toString();
         }
 
-        String incomingContext = WhatsAppNotificationService.getRecentIncomingMessage(this);
+        String context = getBestAvailableContext();
         String tone = TONES[currentToneIndex].split(" ")[0]; // "Warm", "Formal", etc.
+        String lang = (layoutHelper != null) ? layoutHelper.getCurrentLanguageCode() : "auto";
 
         btnAiSuggest.setText("⏳ Thinking…");
         chipsContainer.removeAllViews();
 
-        groqClient.generateReplies(apiKey, model, tone, incomingContext, draft, new GroqClient.Callback() {
+        groqClient.generateReplies(apiKey, model, tone, context, draft, lang, new GroqClient.Callback() {
             @Override
             public void onSuccess(List<String> suggestions) {
                 btnAiSuggest.setText("✨ Suggest");
@@ -124,10 +176,10 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         for (final String suggestion : suggestions) {
             TextView chip = new TextView(this);
             chip.setText(suggestion);
-            chip.setTextColor(ContextCompat.getColor(this, R.color.chip_text));
-            chip.setTextSize(12f);
+            chip.setTextColor(ContextCompat.getColor(this, R.color.on_primary));
             chip.setBackgroundResource(R.drawable.chip_background);
-            chip.setPadding(24, 10, 24, 10);
+            chip.setTextSize(12f);
+            chip.setPadding(24, 12, 24, 12);
 
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -139,23 +191,29 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
             chip.setOnClickListener(v -> {
                 InputConnection ic = getCurrentInputConnection();
                 if (ic != null) {
-                    // Replace draft if any, or just commit suggestion
                     ic.commitText(suggestion, 1);
                 }
-                chipsContainer.removeAllViews();
             });
 
             chipsContainer.addView(chip);
         }
     }
 
-    // --- KeyListener implementation ---
+    // --- KeyboardLayoutHelper.KeyListener implementation ---
 
     @Override
     public void onKeyChar(char c) {
         InputConnection ic = getCurrentInputConnection();
         if (ic != null) {
             ic.commitText(String.valueOf(c), 1);
+        }
+    }
+
+    @Override
+    public void onKeyString(String s) {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic != null) {
+            ic.commitText(s, 1);
         }
     }
 
@@ -176,8 +234,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
     public void onKeyEnter() {
         InputConnection ic = getCurrentInputConnection();
         if (ic != null) {
-            ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER));
-            ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER));
+            sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER);
         }
     }
 
@@ -191,6 +248,49 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
 
     @Override
     public void onKeyShift() {
-        // Handled in layoutHelper
+        // Layout helper shifts internally
+    }
+
+    @Override
+    public void onLanguageChanged(String langCode, String langName) {
+        Toast.makeText(this, "Language: " + langName, Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void onVoiceInputClicked() {
+        toggleVoiceInput();
+    }
+
+    // --- VoiceInputHelper.VoiceCallback implementation ---
+
+    @Override
+    public void onSpeechText(String text, boolean isFinal) {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic != null && text != null && !text.isEmpty()) {
+            ic.commitText(text + (isFinal ? " " : ""), 1);
+        }
+    }
+
+    @Override
+    public void onListeningStateChanged(boolean isListening) {
+        if (btnVoice != null) {
+            btnVoice.setText(isListening ? "🔴 Speak" : "🎙️");
+        }
+    }
+
+    @Override
+    public void onError(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+        if (btnVoice != null) {
+            btnVoice.setText("🎙️");
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if (voiceInputHelper != null) {
+            voiceInputHelper.destroy();
+        }
     }
 }

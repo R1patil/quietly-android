@@ -41,6 +41,10 @@ public class GroqClient {
     }
 
     public void generateReplies(String apiKey, String model, String tone, String context, String draft, Callback callback) {
+        generateReplies(apiKey, model, tone, context, draft, "auto", callback);
+    }
+
+    public void generateReplies(String apiKey, String model, String tone, String context, String draft, String language, Callback callback) {
         if (apiKey == null || apiKey.trim().isEmpty()) {
             mainHandler.post(() -> callback.onError("No Groq API key configured"));
             return;
@@ -50,7 +54,7 @@ public class GroqClient {
 
         executor.execute(() -> {
             try {
-                JSONObject payload = buildPayload(chosenModel, tone, context, draft);
+                JSONObject payload = buildPayload(chosenModel, tone, context, draft, language);
                 RequestBody body = RequestBody.create(payload.toString(), JSON_MEDIA_TYPE);
 
                 Request request = new Request.Builder()
@@ -88,7 +92,7 @@ public class GroqClient {
         });
     }
 
-    private JSONObject buildPayload(String model, String tone, String context, String draft) throws Exception {
+    private JSONObject buildPayload(String model, String tone, String context, String draft, String language) throws Exception {
         JSONObject payload = new JSONObject();
         payload.put("model", model);
         payload.put("temperature", 0.4);
@@ -106,7 +110,18 @@ public class GroqClient {
         else if ("Direct".equalsIgnoreCase(tone)) toneInstruction = "concise, direct, and under 10 words";
         else if ("Fix".equalsIgnoreCase(tone)) toneInstruction = "polished, well-phrased, and free of typos";
 
-        String systemPrompt = "You suggest quick WhatsApp message replies. Tone: " + toneInstruction + ".\n"
+        String langInstruction = "Reply in the same language and script as the chat context (supports English, Hindi, Hinglish, Kannada).";
+        if ("hi".equalsIgnoreCase(language)) {
+            langInstruction = "Generate replies in Hindi or Hinglish matching the conversation.";
+        } else if ("kn".equalsIgnoreCase(language)) {
+            langInstruction = "Generate replies in Kannada (or Kannada conversational phrasing).";
+        } else if ("en".equalsIgnoreCase(language)) {
+            langInstruction = "Generate replies in English.";
+        }
+
+        String systemPrompt = "You suggest intelligent WhatsApp message replies directly addressing the ongoing chat context.\n"
+                + "Tone: " + toneInstruction + ".\n"
+                + "Language rule: " + langInstruction + "\n"
                 + "Return JSON with exactly 3 varied reply options: {\"r1\":{\"text\":\"...\"},\"r2\":{\"text\":\"...\"},\"r3\":{\"text\":\"...\"}}.\n"
                 + "Do not include quotes or conversational filler. Keep each suggestion under 15 words.";
 
@@ -118,15 +133,15 @@ public class GroqClient {
         // User prompt
         StringBuilder userContent = new StringBuilder();
         if (context != null && !context.trim().isEmpty()) {
-            userContent.append("Incoming Message: \"").append(context.trim()).append("\"\n");
+            userContent.append("Active Chat Context: \"").append(context.trim()).append("\"\n");
         }
         if (draft != null && !draft.trim().isEmpty()) {
-            userContent.append("My Typed Draft: \"").append(draft.trim()).append("\"\n");
+            userContent.append("Draft Typed: \"").append(draft.trim()).append("\"\n");
         }
         if (userContent.length() == 0) {
             userContent.append("Suggest 3 common friendly conversation starters or quick check-ins.");
         } else {
-            userContent.append("Suggest 3 natural replies.");
+            userContent.append("Suggest 3 intelligent, highly context-relevant replies directly responding to the above chat.");
         }
 
         JSONObject userMsg = new JSONObject();

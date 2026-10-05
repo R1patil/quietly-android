@@ -46,6 +46,20 @@
             android:textColor="@color/chip_sparkle"
             android:textSize="12sp" />
 
+        <!-- Voice Typing Mic Chip -->
+        <TextView
+            android:id="@+id/btn_voice"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/chip_background"
+            android:gravity="center"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:text="🎙️"
+            android:textColor="@color/on_primary"
+            android:textSize="14sp" />
+
         <!-- Scrollable AI Suggestions Container -->
         <HorizontalScrollView
             android:layout_width="0dp"

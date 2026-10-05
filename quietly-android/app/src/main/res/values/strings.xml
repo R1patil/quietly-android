@@ -6,5 +6,6 @@
     <string name="btn_enable_keyboard">1. Enable Keyboard in Settings</string>
     <string name="btn_select_keyboard">2. Select Quietly as Active Input</string>
     <string name="btn_save_key">Save Key &amp; Test</string>
-    <string name="notification_permission_btn">Enable WhatsApp Context Reader</string>
+    <string name="notification_permission_btn">Enable Notification Reader (WhatsApp)</string>
+    <string name="accessibility_service_description">Reads active conversation context in messaging apps so Quietly AI Keyboard can suggest intelligent context-aware replies.</string>
 </resources>

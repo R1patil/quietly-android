@@ -24,7 +24,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Smart WhatsApp &amp; Chat replies powered by Groq"
+            android:text="Context-aware chat replies, voice typing &amp; multilingual AI"
             android:textColor="@color/text_muted"
             android:textSize="14sp" />
 
@@ -40,7 +40,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="1. Groq API Key"
+                android:text="1. Groq AI Engine"
                 android:textColor="@color/on_primary"
                 android:textSize="16sp"
                 android:textStyle="bold" />
@@ -128,6 +128,86 @@
                 android:textColor="@color/on_primary" />
         </LinearLayout>
 
+        <!-- Card: Context & Smart Features -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/chip_background"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="3. Smart Chat Context &amp; Voice"
+                android:textColor="@color/on_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Enable to allow Quietly to read active on-screen chats (WhatsApp, Telegram) and use voice typing."
+                android:textColor="@color/text_muted"
+                android:textSize="13sp" />
+
+            <!-- Live Chat Accessibility -->
+            <Button
+                android:id="@+id/btn_enable_accessibility"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:backgroundTint="@color/kb_key_bg"
+                android:text="⚡ Enable Live Chat Reader (Accessibility)"
+                android:textColor="@color/on_primary" />
+
+            <TextView
+                android:id="@+id/tv_accessibility_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/chip_sparkle"
+                android:textSize="12sp" />
+
+            <!-- Notification Listener -->
+            <Button
+                android:id="@+id/btn_enable_notif"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:backgroundTint="@color/kb_key_bg"
+                android:text="🔔 Enable WhatsApp Notification Reader"
+                android:textColor="@color/on_primary" />
+
+            <TextView
+                android:id="@+id/tv_notif_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/chip_sparkle"
+                android:textSize="12sp" />
+
+            <!-- Voice Typing Microphone -->
+            <Button
+                android:id="@+id/btn_enable_mic"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:backgroundTint="@color/kb_key_bg"
+                android:text="🎙️ Enable Voice Typing (Microphone)"
+                android:textColor="@color/on_primary" />
+
+            <TextView
+                android:id="@+id/tv_mic_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/chip_sparkle"
+                android:textSize="12sp" />
+        </LinearLayout>
+
         <!-- Card: Clean YouTube Player -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -140,7 +220,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="3. Clean YouTube Player"
+                android:text="4. Clean YouTube Player"
                 android:textColor="@color/on_primary"
                 android:textSize="16sp"
                 android:textStyle="bold" />
@@ -176,7 +256,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="4. Test Keyboard Here"
+                android:text="5. Test Keyboard Here"
                 android:textColor="@color/on_primary"
                 android:textSize="16sp"
                 android:textStyle="bold" />
