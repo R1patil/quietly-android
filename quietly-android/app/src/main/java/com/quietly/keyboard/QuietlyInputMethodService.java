@@ -30,6 +30,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
     private TextView btnTone;
     private TextView btnAiSuggest;
     private TextView btnVoice;
+    private TextView tvContextPreview;
 
     private GroqClient groqClient;
     private KeyboardLayoutHelper layoutHelper;
@@ -50,6 +51,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         btnTone = view.findViewById(R.id.btn_tone);
         btnAiSuggest = view.findViewById(R.id.btn_ai_suggest);
         btnVoice = view.findViewById(R.id.btn_voice);
+        tvContextPreview = view.findViewById(R.id.tv_context_preview);
 
         btnTone.setText(TONES[currentToneIndex]);
         btnTone.setOnClickListener(v -> cycleTone());
@@ -68,6 +70,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         layoutHelper = new KeyboardLayoutHelper(this, this);
         layoutHelper.buildKeyboard(row1, row2, row3, row4);
 
+        setupInitialSuggestions();
         return view;
     }
 
@@ -77,11 +80,77 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
 
         // Fetch best live or notification context
         String context = getBestAvailableContext();
-        if (!context.isEmpty() && chipsContainer != null && chipsContainer.getChildCount() == 0) {
-            String preview = context.length() > 18 ? context.substring(0, 18) + "…" : context;
-            btnAiSuggest.setText("✨ Reply: \"" + preview + "\"");
-        } else if (btnAiSuggest != null) {
-            btnAiSuggest.setText("✨ Suggest");
+        if (!context.isEmpty()) {
+            String preview = context.length() > 24 ? context.substring(0, 24) + "…" : context;
+            if (tvContextPreview != null) {
+                tvContextPreview.setText("💬 Context: \"" + preview + "\"");
+            }
+            if (chipsContainer != null && chipsContainer.getChildCount() == 0) {
+                showReplyPromptChip(context);
+            }
+        } else {
+            if (tvContextPreview != null) {
+                tvContextPreview.setText("💡 Tap ✨ Suggest to generate 3 replies");
+            }
+            if (chipsContainer != null && chipsContainer.getChildCount() == 0) {
+                setupInitialSuggestions();
+            }
+        }
+    }
+
+    private void showReplyPromptChip(String context) {
+        if (chipsContainer == null) return;
+        chipsContainer.removeAllViews();
+
+        TextView promptChip = new TextView(this);
+        String preview = context.length() > 30 ? context.substring(0, 30) + "…" : context;
+        promptChip.setText("✨ Reply to: \"" + preview + "\" (Tap to Generate)");
+        promptChip.setTextColor(ContextCompat.getColor(this, R.color.chip_sparkle));
+        promptChip.setBackgroundResource(R.drawable.chip_background_sparkle);
+        promptChip.setTextSize(12f);
+        promptChip.setGravity(android.view.Gravity.CENTER);
+        promptChip.setPadding(12, 4, 12, 4);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
+        );
+        lp.setMargins(4, 2, 4, 2);
+        promptChip.setLayoutParams(lp);
+
+        promptChip.setOnClickListener(v -> triggerAiSuggestions(false));
+        chipsContainer.addView(promptChip);
+    }
+
+    private void setupInitialSuggestions() {
+        if (chipsContainer == null) return;
+        chipsContainer.removeAllViews();
+
+        String[] quickOptions = {"✨ Tap Suggest", "🎙️ Voice Type", "🌐 Switch Lang"};
+        for (String opt : quickOptions) {
+            TextView chip = new TextView(this);
+            chip.setText(opt);
+            chip.setTextColor(ContextCompat.getColor(this, R.color.text_muted));
+            chip.setBackgroundResource(R.drawable.chip_background);
+            chip.setTextSize(11f);
+            chip.setGravity(android.view.Gravity.CENTER);
+            chip.setPadding(6, 2, 6, 2);
+
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    1.0f
+            );
+            lp.setMargins(3, 2, 3, 2);
+            chip.setLayoutParams(lp);
+
+            chip.setOnClickListener(v -> {
+                if (opt.contains("Suggest")) triggerAiSuggestions(false);
+                else if (opt.contains("Voice")) toggleVoiceInput();
+                else if (opt.contains("Lang") && layoutHelper != null) layoutHelper.cycleLanguage();
+            });
+
+            chipsContainer.addView(chip);
         }
     }
 
@@ -154,6 +223,20 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         btnAiSuggest.setText("⏳ Thinking…");
         chipsContainer.removeAllViews();
 
+        TextView loadingChip = new TextView(this);
+        loadingChip.setText("⏳ Thinking… Drafting 3 context-aware replies…");
+        loadingChip.setTextColor(ContextCompat.getColor(this, R.color.chip_sparkle));
+        loadingChip.setBackgroundResource(R.drawable.chip_background);
+        loadingChip.setTextSize(11f);
+        loadingChip.setGravity(android.view.Gravity.CENTER);
+        LinearLayout.LayoutParams lpLoading = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
+        );
+        lpLoading.setMargins(4, 2, 4, 2);
+        loadingChip.setLayoutParams(lpLoading);
+        chipsContainer.addView(loadingChip);
+
         groqClient.generateReplies(apiKey, model, tone, context, draft, lang, new GroqClient.Callback() {
             @Override
             public void onSuccess(List<String> suggestions) {
@@ -165,6 +248,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
             public void onError(String error) {
                 btnAiSuggest.setText("✨ Suggest");
                 Toast.makeText(QuietlyInputMethodService.this, "Groq: " + error, Toast.LENGTH_SHORT).show();
+                setupInitialSuggestions();
             }
         });
     }
@@ -178,14 +262,18 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
             chip.setText(suggestion);
             chip.setTextColor(ContextCompat.getColor(this, R.color.on_primary));
             chip.setBackgroundResource(R.drawable.chip_background);
-            chip.setTextSize(12f);
-            chip.setPadding(24, 12, 24, 12);
+            chip.setTextSize(11f);
+            chip.setGravity(android.view.Gravity.CENTER);
+            chip.setMaxLines(2);
+            chip.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            chip.setPadding(8, 2, 8, 2);
 
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
+                    0,
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    1.0f // Equal 1/3 screen width for each suggestion!
             );
-            lp.setMargins(6, 0, 6, 0);
+            lp.setMargins(3, 2, 3, 2);
             chip.setLayoutParams(lp);
 
             chip.setOnClickListener(v -> {

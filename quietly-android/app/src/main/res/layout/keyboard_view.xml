@@ -7,11 +7,35 @@
     android:orientation="vertical"
     android:paddingBottom="6dp">
 
-    <!-- AI Suggestion & Tone Strip -->
+    <!-- TIER 1: Dedicated Full-Width AI Suggestion Bar (All 3 suggestions clearly visible) -->
     <LinearLayout
-        android:id="@+id/suggestion_header"
+        android:id="@+id/tier_suggestions"
         android:layout_width="match_parent"
-        android:layout_height="44dp"
+        android:layout_height="40dp"
+        android:background="@color/strip_bg"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp">
+
+        <LinearLayout
+            android:id="@+id/chips_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:orientation="horizontal" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/chip_border" />
+
+    <!-- TIER 2: Controls Strip (Suggest, Tone, Mic, Context Hint) -->
+    <LinearLayout
+        android:id="@+id/tier_controls"
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
         android:background="@color/strip_bg"
         android:gravity="center_vertical"
         android:orientation="horizontal"
@@ -22,59 +46,57 @@
         <TextView
             android:id="@+id/btn_ai_suggest"
             android:layout_width="wrap_content"
-            android:layout_height="32dp"
+            android:layout_height="28dp"
             android:background="@drawable/chip_background_sparkle"
             android:gravity="center"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
             android:text="✨ Suggest"
             android:textColor="@color/on_primary"
-            android:textSize="12sp"
+            android:textSize="11sp"
             android:textStyle="bold" />
 
         <!-- Tone Switcher Chip -->
         <TextView
             android:id="@+id/btn_tone"
             android:layout_width="wrap_content"
-            android:layout_height="32dp"
+            android:layout_height="28dp"
             android:layout_marginStart="6dp"
             android:background="@drawable/chip_background"
             android:gravity="center"
-            android:paddingStart="10dp"
-            android:paddingEnd="10dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:text="🌟 Warm"
             android:textColor="@color/chip_sparkle"
-            android:textSize="12sp" />
+            android:textSize="11sp" />
 
         <!-- Voice Typing Mic Chip -->
         <TextView
             android:id="@+id/btn_voice"
             android:layout_width="wrap_content"
-            android:layout_height="32dp"
+            android:layout_height="28dp"
             android:layout_marginStart="6dp"
             android:background="@drawable/chip_background"
             android:gravity="center"
-            android:paddingStart="10dp"
-            android:paddingEnd="10dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:text="🎙️"
             android:textColor="@color/on_primary"
-            android:textSize="14sp" />
+            android:textSize="12sp" />
 
-        <!-- Scrollable AI Suggestions Container -->
-        <HorizontalScrollView
+        <!-- Live Context Preview or Status Text -->
+        <TextView
+            android:id="@+id/tv_context_preview"
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="6dp"
-            android:scrollbars="none">
-
-            <LinearLayout
-                android:id="@+id/chips_container"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:gravity="center_vertical"
-                android:orientation="horizontal" />
-        </HorizontalScrollView>
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="4dp"
+            android:ellipsize="end"
+            android:singleLine="true"
+            android:text="💡 Tap ✨ Suggest to generate 3 replies"
+            android:textColor="@color/text_muted"
+            android:textSize="11sp" />
     </LinearLayout>
 
     <View
