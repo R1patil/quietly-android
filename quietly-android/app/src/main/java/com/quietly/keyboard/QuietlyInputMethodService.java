@@ -85,17 +85,12 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
             if (tvContextPreview != null) {
                 tvContextPreview.setText("💬 Context: \"" + preview + "\"");
             }
-            if (chipsContainer != null && chipsContainer.getChildCount() == 0) {
-                showReplyPromptChip(context);
-            }
         } else {
             if (tvContextPreview != null) {
                 tvContextPreview.setText("💡 Tap ✨ Suggest to generate 3 replies");
             }
-            if (chipsContainer != null && chipsContainer.getChildCount() == 0) {
-                setupInitialSuggestions();
-            }
         }
+        updateWordSuggestions();
     }
 
     private void showReplyPromptChip(String context) {
@@ -328,6 +323,67 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         }
     }
 
+    // --- Real-time Word Suggestions Bar ---
+
+    private void updateWordSuggestions() {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null || chipsContainer == null) return;
+
+        String currentWord = WordSuggestionHelper.extractCurrentWord(ic);
+        if (!currentWord.isEmpty()) {
+            List<String> suggestions = WordSuggestionHelper.getSuggestions(currentWord, 3);
+            if (!suggestions.isEmpty()) {
+                displayWordSuggestions(suggestions, currentWord);
+                return;
+            }
+        }
+
+        // When no active word is being typed, show context or default shortcuts
+        String context = getBestAvailableContext();
+        if (!context.isEmpty()) {
+            showReplyPromptChip(context);
+        } else {
+            setupInitialSuggestions();
+        }
+    }
+
+    private void displayWordSuggestions(final List<String> suggestions, final String activeWord) {
+        if (chipsContainer == null) return;
+        chipsContainer.removeAllViews();
+
+        for (final String suggestion : suggestions) {
+            TextView chip = new TextView(this);
+            chip.setText(suggestion);
+            chip.setTextColor(ContextCompat.getColor(this, R.color.on_primary));
+            chip.setBackgroundResource(R.drawable.chip_background);
+            chip.setTextSize(13f);
+            chip.setGravity(android.view.Gravity.CENTER);
+            chip.setPadding(10, 2, 10, 2);
+
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    1.0f
+            );
+            lp.setMargins(3, 2, 3, 2);
+            chip.setLayoutParams(lp);
+
+            chip.setOnClickListener(v -> {
+                InputConnection ic = getCurrentInputConnection();
+                if (ic != null) {
+                    if (activeWord != null && activeWord.length() > 0) {
+                        ic.deleteSurroundingText(activeWord.length(), 0);
+                    }
+                    ic.commitText(suggestion + " ", 1);
+                    updateDraftState();
+                    updateWordSuggestions();
+                }
+            });
+
+            chipsContainer.addView(chip);
+        }
+    }
+
     // --- KeyboardLayoutHelper.KeyListener implementation ---
 
     @Override
@@ -336,6 +392,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         if (ic != null) {
             ic.commitText(String.valueOf(c), 1);
             updateDraftState();
+            updateWordSuggestions();
         }
     }
 
@@ -345,6 +402,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         if (ic != null) {
             ic.commitText(s, 1);
             updateDraftState();
+            updateWordSuggestions();
         }
     }
 
@@ -359,6 +417,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
                 ic.deleteSurroundingText(1, 0);
             }
             updateDraftState();
+            updateWordSuggestions();
         }
     }
 
@@ -368,6 +427,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         if (ic != null) {
             sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER);
             updateDraftState();
+            updateWordSuggestions();
         }
     }
 
@@ -377,6 +437,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         if (ic != null) {
             ic.commitText(" ", 1);
             updateDraftState();
+            updateWordSuggestions();
         }
     }
 
