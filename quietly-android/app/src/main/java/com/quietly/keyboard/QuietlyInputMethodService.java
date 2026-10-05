@@ -212,9 +212,10 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         InputConnection ic = getCurrentInputConnection();
         String draft = "";
         if (ic != null) {
-            CharSequence textBefore = ic.getTextBeforeCursor(300, 0);
-            if (textBefore != null) draft = textBefore.toString();
+            CharSequence textBefore = ic.getTextBeforeCursor(500, 0);
+            if (textBefore != null) draft = textBefore.toString().trim();
         }
+        final boolean isDraftMode = !draft.isEmpty();
 
         String context = getBestAvailableContext();
         String tone = TONES[currentToneIndex].split(" ")[0]; // "Warm", "Formal", etc.
@@ -224,7 +225,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         chipsContainer.removeAllViews();
 
         TextView loadingChip = new TextView(this);
-        loadingChip.setText("⏳ Thinking… Drafting 3 context-aware replies…");
+        loadingChip.setText(isDraftMode ? "⏳ Polishing your draft into 3 variants…" : "⏳ Thinking… Drafting 3 context-aware replies…");
         loadingChip.setTextColor(ContextCompat.getColor(this, R.color.chip_sparkle));
         loadingChip.setBackgroundResource(R.drawable.chip_background);
         loadingChip.setTextSize(11f);
@@ -240,20 +241,20 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         groqClient.generateReplies(apiKey, model, tone, context, draft, lang, new GroqClient.Callback() {
             @Override
             public void onSuccess(List<String> suggestions) {
-                btnAiSuggest.setText("✨ Suggest");
-                displaySuggestions(suggestions);
+                updateDraftState();
+                displaySuggestions(suggestions, isDraftMode);
             }
 
             @Override
             public void onError(String error) {
-                btnAiSuggest.setText("✨ Suggest");
+                updateDraftState();
                 Toast.makeText(QuietlyInputMethodService.this, "Groq: " + error, Toast.LENGTH_SHORT).show();
                 setupInitialSuggestions();
             }
         });
     }
 
-    private void displaySuggestions(List<String> suggestions) {
+    private void displaySuggestions(List<String> suggestions, final boolean isDraftMode) {
         if (chipsContainer == null) return;
         chipsContainer.removeAllViews();
 
@@ -279,11 +280,51 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
             chip.setOnClickListener(v -> {
                 InputConnection ic = getCurrentInputConnection();
                 if (ic != null) {
+                    if (isDraftMode) {
+                        // Replace user's typed draft with chosen polished variant
+                        CharSequence before = ic.getTextBeforeCursor(1000, 0);
+                        if (before != null && before.length() > 0) {
+                            ic.deleteSurroundingText(before.length(), 0);
+                        }
+                    }
                     ic.commitText(suggestion, 1);
+                    updateDraftState();
                 }
             });
 
             chipsContainer.addView(chip);
+        }
+    }
+
+    private void updateDraftState() {
+        InputConnection ic = getCurrentInputConnection();
+        String draft = "";
+        if (ic != null) {
+            CharSequence textBefore = ic.getTextBeforeCursor(300, 0);
+            if (textBefore != null) draft = textBefore.toString().trim();
+        }
+
+        if (!draft.isEmpty()) {
+            if (btnAiSuggest != null) {
+                btnAiSuggest.setText("✨ Polish Draft");
+            }
+            if (tvContextPreview != null) {
+                String preview = draft.length() > 24 ? draft.substring(0, 24) + "…" : draft;
+                tvContextPreview.setText("✍️ Polishing: \"" + preview + "\"");
+            }
+        } else {
+            if (btnAiSuggest != null) {
+                btnAiSuggest.setText("✨ Suggest");
+            }
+            String context = getBestAvailableContext();
+            if (tvContextPreview != null) {
+                if (!context.isEmpty()) {
+                    String preview = context.length() > 24 ? context.substring(0, 24) + "…" : context;
+                    tvContextPreview.setText("💬 Context: \"" + preview + "\"");
+                } else {
+                    tvContextPreview.setText("💡 Tap ✨ Suggest to generate 3 replies");
+                }
+            }
         }
     }
 
@@ -294,6 +335,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         InputConnection ic = getCurrentInputConnection();
         if (ic != null) {
             ic.commitText(String.valueOf(c), 1);
+            updateDraftState();
         }
     }
 
@@ -302,6 +344,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         InputConnection ic = getCurrentInputConnection();
         if (ic != null) {
             ic.commitText(s, 1);
+            updateDraftState();
         }
     }
 
@@ -315,6 +358,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
             } else {
                 ic.deleteSurroundingText(1, 0);
             }
+            updateDraftState();
         }
     }
 
@@ -323,6 +367,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         InputConnection ic = getCurrentInputConnection();
         if (ic != null) {
             sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER);
+            updateDraftState();
         }
     }
 
@@ -331,6 +376,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         InputConnection ic = getCurrentInputConnection();
         if (ic != null) {
             ic.commitText(" ", 1);
+            updateDraftState();
         }
     }
 
@@ -353,16 +399,29 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
 
     @Override
     public void onSpeechText(String text, boolean isFinal) {
-        InputConnection ic = getCurrentInputConnection();
-        if (ic != null && text != null && !text.isEmpty()) {
-            ic.commitText(text + (isFinal ? " " : ""), 1);
+        if (text == null || text.trim().isEmpty()) return;
+
+        if (isFinal) {
+            // Option A: Commit the clean single sentence once
+            InputConnection ic = getCurrentInputConnection();
+            if (ic != null) {
+                ic.commitText(text.trim() + " ", 1);
+            }
+            if (tvContextPreview != null) {
+                tvContextPreview.setText("✓ Voice: \"" + text.trim() + "\"");
+            }
+        } else {
+            // Live feedback on preview bar without writing repeatedly into WhatsApp
+            if (tvContextPreview != null) {
+                tvContextPreview.setText("🎙️ \"" + text + "…\"");
+            }
         }
     }
 
     @Override
     public void onListeningStateChanged(boolean isListening) {
         if (btnVoice != null) {
-            btnVoice.setText(isListening ? "🔴 Speak" : "🎙️");
+            btnVoice.setText(isListening ? "🔴 Stop" : "🎙️");
         }
     }
 

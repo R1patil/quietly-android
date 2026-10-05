@@ -86,7 +86,10 @@ public class VoiceInputHelper {
                         if (results != null) {
                             ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                             if (matches != null && !matches.isEmpty()) {
-                                callback.onSpeechText(matches.get(0), true);
+                                String cleanText = matches.get(0).trim();
+                                if (!cleanText.isEmpty()) {
+                                    callback.onSpeechText(cleanText, true);
+                                }
                             }
                         }
                     }

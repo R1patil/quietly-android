@@ -119,11 +119,23 @@ public class GroqClient {
             langInstruction = "Generate replies in English.";
         }
 
-        String systemPrompt = "You suggest intelligent WhatsApp message replies directly addressing the ongoing chat context.\n"
-                + "Tone: " + toneInstruction + ".\n"
-                + "Language rule: " + langInstruction + "\n"
-                + "Return JSON with exactly 3 varied reply options: {\"r1\":{\"text\":\"...\"},\"r2\":{\"text\":\"...\"},\"r3\":{\"text\":\"...\"}}.\n"
-                + "Do not include quotes or conversational filler. Keep each suggestion under 15 words.";
+        boolean hasDraft = (draft != null && !draft.trim().isEmpty());
+
+        String systemPrompt;
+        if (hasDraft) {
+            systemPrompt = "You polish, rephrase, and improve the user's typed draft message for WhatsApp.\n"
+                    + "Tone: " + toneInstruction + ".\n"
+                    + "Language rule: " + langInstruction + "\n"
+                    + "All 3 options must be polished variants of the user's draft intent, preserving their meaning while making it clearer, fluent, and well-written.\n"
+                    + "Return JSON with exactly 3 varied polished options: {\"r1\":{\"text\":\"...\"},\"r2\":{\"text\":\"...\"},\"r3\":{\"text\":\"...\"}}.\n"
+                    + "Do not include quotes or conversational filler. Keep each suggestion under 20 words.";
+        } else {
+            systemPrompt = "You suggest intelligent WhatsApp message replies directly addressing the ongoing chat context.\n"
+                    + "Tone: " + toneInstruction + ".\n"
+                    + "Language rule: " + langInstruction + "\n"
+                    + "Return JSON with exactly 3 varied reply options: {\"r1\":{\"text\":\"...\"},\"r2\":{\"text\":\"...\"},\"r3\":{\"text\":\"...\"}}.\n"
+                    + "Do not include quotes or conversational filler. Keep each suggestion under 15 words.";
+        }
 
         JSONObject sysMsg = new JSONObject();
         sysMsg.put("role", "system");
@@ -132,16 +144,17 @@ public class GroqClient {
 
         // User prompt
         StringBuilder userContent = new StringBuilder();
-        if (context != null && !context.trim().isEmpty()) {
+        if (hasDraft) {
+            userContent.append("MY DRAFT: \"").append(draft.trim()).append("\"\n");
+            if (context != null && !context.trim().isEmpty()) {
+                userContent.append("Conversation Context: \"").append(context.trim()).append("\"\n");
+            }
+            userContent.append("Write 3 polished, improved variants of MY DRAFT (Option 1: natural & fluent, Option 2: clear & direct, Option 3: polite & well-crafted).");
+        } else if (context != null && !context.trim().isEmpty()) {
             userContent.append("Active Chat Context: \"").append(context.trim()).append("\"\n");
-        }
-        if (draft != null && !draft.trim().isEmpty()) {
-            userContent.append("Draft Typed: \"").append(draft.trim()).append("\"\n");
-        }
-        if (userContent.length() == 0) {
-            userContent.append("Suggest 3 common friendly conversation starters or quick check-ins.");
-        } else {
             userContent.append("Suggest 3 intelligent, highly context-relevant replies directly responding to the above chat.");
+        } else {
+            userContent.append("Suggest 3 common friendly conversation starters or quick check-ins.");
         }
 
         JSONObject userMsg = new JSONObject();
