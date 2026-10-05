@@ -1,0 +1,103 @@
+name: Build & Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag (e.g. v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+      release_name:
+        description: 'Release Title'
+        required: false
+        default: 'Quietly Suite Release'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build APKs & Create Permanent Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Build Android APKs
+        working-directory: quietly-android
+        run: |
+          gradle assembleDebug assembleRelease --stacktrace
+
+      - name: Prepare Release Artifacts
+        id: prep
+        run: |
+          VERSION="${{ github.ref_name }}"
+          if [[ -z "$VERSION" || "$VERSION" == "main" ]]; then
+            VERSION="${{ github.event.inputs.tag_name || 'v1.0.0' }}"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+          # Create directory for release assets
+          mkdir -p release-assets
+
+          # Copy and rename Android APKs
+          if [ -f quietly-android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp quietly-android/app/build/outputs/apk/release/app-release.apk release-assets/Quietly-Mobile-$VERSION-release.apk
+          elif [ -f quietly-android/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            cp quietly-android/app/build/outputs/apk/release/app-release-unsigned.apk release-assets/Quietly-Mobile-$VERSION-release-unsigned.apk
+          fi
+
+          if [ -f quietly-android/app/build/outputs/apk/debug/app-debug.apk ]; then
+            cp quietly-android/app/build/outputs/apk/debug/app-debug.apk release-assets/Quietly-Mobile-$VERSION-debug.apk
+          elif [ -f quietly-android/app-debug.apk ]; then
+            cp quietly-android/app-debug.apk release-assets/Quietly-Mobile-$VERSION-debug.apk
+          fi
+
+          # Package Chrome Extension as ZIP
+          if [ -d quietly ]; then
+            cd quietly
+            zip -r ../release-assets/Quietly-Chrome-Extension-$VERSION.zip . -x "*.git*"
+            cd ..
+          fi
+
+          ls -la release-assets/
+
+      - name: Generate SHA-256 Checksums
+        run: |
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          cd ..
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: ${{ github.event.inputs.release_name || env.VERSION }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

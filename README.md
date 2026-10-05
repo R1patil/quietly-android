@@ -41,11 +41,17 @@ Welcome to the **Quietly** project repository. Quietly is a cross-platform perso
 
 ---
 
-## 📖 Complete Documentation & PDF Conversion
+## 📖 Complete Technical Documentation
 
-For an exhaustive technical breakdown, architectural diagrams, API contracts, root cause analyses, and troubleshooting procedures, please consult:
+For an exhaustive technical breakdown, architectural diagrams, API contracts, root cause analyses, and troubleshooting procedures, please consult **[`PROJECT_DOCUMENTATION.md`](./PROJECT_DOCUMENTATION.md)**.
 
 ---
+
+## 📦 Releases & Version Archive
+
+Every release is permanently archived with ready-to-install Android APKs, SHA-256 checksums, and Chrome extension ZIP bundles. You can download current and all previous historical versions at:
+👉 **[Quietly Releases on GitHub](https://github.com/R1patil/quietly-android/releases)**
+
 
 ## 👥 Credits & Open-Source Attribution
 
