@@ -1,12 +1,15 @@
 package com.quietly.keyboard;
 
+import android.content.Context;
 import android.view.inputmethod.InputConnection;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Helper class that provides word suggestions powered by a Trie and
+ * integrates with Android's system UserDictionary.
+ */
 public class WordSuggestionHelper {
 
     // Curated high-frequency English + common conversational words
@@ -70,8 +73,23 @@ public class WordSuggestionHelper {
         "haan", "theek", "shukriya", "bhai", "kaisa", "bolo", "kal", "aaj", "abhi"
     };
 
+    private static final Trie trie = new Trie();
+    private static boolean initialized = false;
+
     static {
-        Arrays.sort(VOCABULARY);
+        // Populate base vocabulary into the Trie with default frequency
+        for (String word : VOCABULARY) {
+            trie.insert(word, 10);
+        }
+    }
+
+    /**
+     * Initializes the Trie with words from Android UserDictionary and local storage.
+     */
+    public static synchronized void init(Context context) {
+        if (initialized || context == null) return;
+        initialized = true;
+        UserDictionaryHelper.loadIntoTrie(context.getApplicationContext(), trie);
     }
 
     /**
@@ -95,66 +113,20 @@ public class WordSuggestionHelper {
     }
 
     /**
-     * Returns matching word suggestions for the prefix, retaining the case of the typed input.
+     * Returns matching word suggestions for the prefix using the Trie with frequency ranking.
      */
     public static List<String> getSuggestions(String inputPrefix, int maxResults) {
         if (inputPrefix == null || inputPrefix.trim().isEmpty()) {
             return Collections.emptyList();
         }
-
-        String prefix = inputPrefix.trim().toLowerCase();
-        List<String> results = new ArrayList<>();
-
-        // Binary search for closest prefix match
-        int idx = Arrays.binarySearch(VOCABULARY, prefix);
-        if (idx < 0) {
-            idx = -(idx + 1);
-        }
-
-        // Exact match first if exists
-        for (int i = idx; i < VOCABULARY.length && results.size() < maxResults; i++) {
-            String word = VOCABULARY[i];
-            if (word.startsWith(prefix)) {
-                results.add(formatWordCase(word, inputPrefix));
-            } else {
-                break; // Because array is sorted, prefix matches are contiguous
-            }
-        }
-
-        // If fewer results, search for contains as fallback
-        if (results.size() < maxResults) {
-            for (String word : VOCABULARY) {
-                if (results.size() >= maxResults) break;
-                if (!word.startsWith(prefix) && word.contains(prefix)) {
-                    String formatted = formatWordCase(word, inputPrefix);
-                    if (!results.contains(formatted)) {
-                        results.add(formatted);
-                    }
-                }
-            }
-        }
-
-        return results;
+        return trie.getSuggestions(inputPrefix, maxResults);
     }
 
-    private static String formatWordCase(String word, String reference) {
-        if (word == null || word.isEmpty()) return "";
-        if (reference.length() == 0) return word;
-
-        boolean allUpper = true;
-        for (int i = 0; i < reference.length(); i++) {
-            if (Character.isLetter(reference.charAt(i)) && !Character.isUpperCase(reference.charAt(i))) {
-                allUpper = false;
-                break;
-            }
-        }
-
-        if (allUpper && reference.length() > 1) {
-            return word.toUpperCase();
-        } else if (Character.isUpperCase(reference.charAt(0))) {
-            return Character.toUpperCase(word.charAt(0)) + (word.length() > 1 ? word.substring(1) : "");
-        } else {
-            return word.toLowerCase();
-        }
+    /**
+     * Learns a newly completed word into the Trie and Android UserDictionary.
+     */
+    public static void learnWord(Context context, String word) {
+        if (word == null || word.trim().isEmpty()) return;
+        UserDictionaryHelper.learnWord(context, trie, word);
     }
 }

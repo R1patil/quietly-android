@@ -14,6 +14,7 @@ public class QuietlyAccessibilityService extends AccessibilityService {
     public static final String PREFS_NAME = "quietly_context";
     public static final String KEY_LIVE_CHAT_CONTEXT = "live_chat_context";
     public static final String KEY_LIVE_CHAT_TIME = "live_chat_time";
+    public static final String KEY_PACKAGE_NAME = "live_chat_package";
 
     private long lastScanTime = 0;
 
@@ -57,6 +58,7 @@ public class QuietlyAccessibilityService extends AccessibilityService {
                     prefs.edit()
                             .putString(KEY_LIVE_CHAT_CONTEXT, latestMessage)
                             .putString("live_chat_full_history", fullContext.toString())
+                            .putString(KEY_PACKAGE_NAME, pkg)
                             .putLong(KEY_LIVE_CHAT_TIME, System.currentTimeMillis())
                             .apply();
                 }
@@ -111,16 +113,29 @@ public class QuietlyAccessibilityService extends AccessibilityService {
         return filtered;
     }
 
-    public static String getLiveChatContext(Context context) {
+    public static String getLiveChatContext(Context context, String currentPackage) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         long time = prefs.getLong(KEY_LIVE_CHAT_TIME, 0);
-        // Valid if scanned within the last 10 minutes
-        if (System.currentTimeMillis() - time < 10 * 60 * 1000) {
+        String savedPkg = prefs.getString(KEY_PACKAGE_NAME, "");
+
+        // If user is not currently in the same chat app where context was captured, DO NOT use it!
+        if (currentPackage != null && !currentPackage.isEmpty()) {
+            if (!savedPkg.isEmpty() && !currentPackage.equalsIgnoreCase(savedPkg)) {
+                return ""; // Context from different app (e.g. WhatsApp context in Google/X)
+            }
+        }
+
+        // Expire after 90 seconds of inactivity to keep context fresh
+        if (System.currentTimeMillis() - time < 90 * 1000) {
             String history = prefs.getString("live_chat_full_history", "");
             String latest = prefs.getString(KEY_LIVE_CHAT_CONTEXT, "");
             return !history.isEmpty() ? history : latest;
         }
         return "";
+    }
+
+    public static String getLiveChatContext(Context context) {
+        return getLiveChatContext(context, "");
     }
 
     @Override

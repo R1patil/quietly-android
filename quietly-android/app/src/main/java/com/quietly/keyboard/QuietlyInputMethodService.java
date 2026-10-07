@@ -35,7 +35,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Runnable draftUpdateRunnable = this::updateDraftStateSync;
 
-    private final String[] TONES = {"Warm 🌟", "Formal 💼", "Direct ⚡", "Fix ✍️"};
+    private final String[] TONES = {"Warm 🌟", "Formal 💼", "Direct ⚡", "Fix ✍️", "Think 🧠"};
     private int currentToneIndex = 0;
 
     private LinearLayout chipsContainer;
@@ -53,6 +53,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         super.onCreate();
         groqClient = new GroqClient();
         voiceInputHelper = new VoiceInputHelper(this, this);
+        WordSuggestionHelper.init(this);
     }
 
     @Override
@@ -86,12 +87,37 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         return view;
     }
 
+    private String currentPackageName = "";
+
     @Override
     public void onStartInputView(EditorInfo info, boolean restarting) {
         super.onStartInputView(info, restarting);
 
-        // Fetch best live or notification context
-        cachedContext = getBestAvailableContext();
+        currentPackageName = (info != null && info.packageName != null) ? info.packageName : "";
+
+        // Check if user is typing in a search bar, URL bar, or password
+        boolean isSearchOrUrl = false;
+        if (info != null) {
+            int action = info.imeOptions & EditorInfo.IME_MASK_ACTION;
+            int variation = info.inputType & EditorInfo.TYPE_MASK_VARIATION;
+            if (action == EditorInfo.IME_ACTION_SEARCH
+                    || variation == EditorInfo.TYPE_TEXT_VARIATION_URI
+                    || variation == EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT
+                    || currentPackageName.contains("googlequicksearchbox")
+                    || currentPackageName.contains("chrome")
+                    || currentPackageName.contains("twitter")
+                    || currentPackageName.contains("browser")) {
+                isSearchOrUrl = true;
+            }
+        }
+
+        // Only fetch chat context if currently typing in an actual chat app
+        if (isSearchOrUrl) {
+            cachedContext = "";
+        } else {
+            cachedContext = getBestAvailableContext(currentPackageName);
+        }
+
         if (!cachedContext.isEmpty()) {
             String preview = cachedContext.length() > 24 ? cachedContext.substring(0, 24) + "…" : cachedContext;
             if (tvContextPreview != null) {
@@ -103,6 +129,12 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
             }
         }
         updateWordSuggestions();
+    }
+
+    @Override
+    public void onFinishInputView(boolean finishingInput) {
+        super.onFinishInputView(finishingInput);
+        cachedContext = ""; // Immediately clear cached context when leaving input
     }
 
     private void showReplyPromptChip(String context) {
@@ -169,34 +201,40 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         }
     }
 
-    private String getBestAvailableContext() {
-        // Priority 1: Real-time on-screen chat context via Accessibility
-        String liveChat = QuietlyAccessibilityService.getLiveChatContext(this);
+    private String getBestAvailableContext(String currentPackage) {
+        // Priority 1: Real-time on-screen chat context via Accessibility (filtered to current app)
+        String liveChat = QuietlyAccessibilityService.getLiveChatContext(this, currentPackage);
         if (!liveChat.isEmpty()) {
             return liveChat;
         }
 
-        // Priority 2: WhatsApp / Telegram incoming notification
-        String notifMsg = WhatsAppNotificationService.getRecentIncomingMessage(this);
+        // Priority 2: WhatsApp / Telegram incoming notification (only inside chat apps)
+        String notifMsg = WhatsAppNotificationService.getRecentIncomingMessage(this, currentPackage);
         if (!notifMsg.isEmpty()) {
             return notifMsg;
         }
 
-        // Priority 3: System clipboard if user copied something recently
-        try {
-            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            if (cm != null && cm.hasPrimaryClip()) {
-                ClipData clip = cm.getPrimaryClip();
-                if (clip != null && clip.getItemCount() > 0) {
-                    CharSequence text = clip.getItemAt(0).getText();
-                    if (text != null && text.length() > 0 && text.length() < 300) {
-                        return text.toString().trim();
+        // Priority 3: System clipboard ONLY if currently in a messaging app
+        if (currentPackage != null && (currentPackage.contains("whatsapp") || currentPackage.contains("telegram") || currentPackage.contains("messaging"))) {
+            try {
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                if (cm != null && cm.hasPrimaryClip()) {
+                    ClipData clip = cm.getPrimaryClip();
+                    if (clip != null && clip.getItemCount() > 0) {
+                        CharSequence text = clip.getItemAt(0).getText();
+                        if (text != null && text.length() > 0 && text.length() < 300) {
+                            return text.toString().trim();
+                        }
                     }
                 }
-            }
-        } catch (Exception ignored) {}
+            } catch (Exception ignored) {}
+        }
 
         return "";
+    }
+
+    private String getBestAvailableContext() {
+        return getBestAvailableContext(currentPackageName);
     }
 
     private void cycleTone() {
@@ -432,6 +470,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
                 ic.deleteSurroundingText(activeWord.length(), 0);
             }
             ic.commitText(suggestion + " ", 1);
+            WordSuggestionHelper.learnWord(this, suggestion);
             updateDraftStateSync();
             updateWordSuggestions();
         }
@@ -478,6 +517,10 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
     public void onKeyEnter() {
         InputConnection ic = getCurrentInputConnection();
         if (ic != null) {
+            String lastWord = WordSuggestionHelper.extractCurrentWord(ic);
+            if (!lastWord.isEmpty()) {
+                WordSuggestionHelper.learnWord(this, lastWord);
+            }
             sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER);
             updateDraftStateSync();
             updateWordSuggestions();
@@ -488,6 +531,10 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
     public void onKeySpace() {
         InputConnection ic = getCurrentInputConnection();
         if (ic != null) {
+            String lastWord = WordSuggestionHelper.extractCurrentWord(ic);
+            if (!lastWord.isEmpty()) {
+                WordSuggestionHelper.learnWord(this, lastWord);
+            }
             ic.commitText(" ", 1);
             updateDraftStateSync();
             updateWordSuggestions();

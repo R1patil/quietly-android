@@ -39,11 +39,21 @@ public class WhatsAppNotificationService extends NotificationListenerService {
         }
     }
 
-    public static String getRecentIncomingMessage(Context context) {
+    public static String getRecentIncomingMessage(Context context, String currentPackage) {
+        // Only inject incoming WhatsApp/Telegram notification if user is inside WhatsApp/Telegram or replying!
+        if (currentPackage != null && !currentPackage.isEmpty()) {
+            boolean isMessaging = currentPackage.contains("whatsapp") 
+                    || currentPackage.contains("telegram") 
+                    || currentPackage.contains("messaging");
+            if (!isMessaging) {
+                return ""; // Do not leak WhatsApp notifications into Google, X, Chrome, etc.
+            }
+        }
+
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         long time = prefs.getLong(KEY_TIME, 0);
-        // If message arrived within the last 15 minutes, consider it relevant
-        if (System.currentTimeMillis() - time < 15 * 60 * 1000) {
+        // Freshness: Only relevant within the last 2 minutes
+        if (System.currentTimeMillis() - time < 2 * 60 * 1000) {
             String sender = prefs.getString(KEY_SENDER, "");
             String text = prefs.getString(KEY_TEXT, "");
             if (!text.isEmpty()) {
@@ -51,5 +61,9 @@ public class WhatsAppNotificationService extends NotificationListenerService {
             }
         }
         return "";
+    }
+
+    public static String getRecentIncomingMessage(Context context) {
+        return getRecentIncomingMessage(context, "");
     }
 }

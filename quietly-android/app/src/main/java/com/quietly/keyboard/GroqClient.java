@@ -40,6 +40,20 @@ public class GroqClient {
         this.mainHandler = new Handler(Looper.getMainLooper());
     }
 
+    public static String resolveModel(String model, String tone, boolean hasDraft) {
+        if (model == null || model.isEmpty() || "auto-smart".equalsIgnoreCase(model) || "auto".equalsIgnoreCase(model)) {
+            if (tone != null && (tone.toLowerCase().contains("think") || tone.toLowerCase().contains("🧠"))) {
+                return "deepseek-r1-distill-llama-70b"; // Deep reasoning for calculations & tough questions
+            } else if (tone != null && (tone.toLowerCase().contains("formal") || tone.toLowerCase().contains("💼"))) {
+                return "llama-3.3-70b-versatile"; // Flagship nuance for executive communication
+            } else {
+                // Ultra-low-latency 850+ tok/s for instant response & draft polish
+                return "llama-3.1-8b-instant";
+            }
+        }
+        return model.trim();
+    }
+
     public void generateReplies(String apiKey, String model, String tone, String context, String draft, Callback callback) {
         generateReplies(apiKey, model, tone, context, draft, "auto", callback);
     }
@@ -50,11 +64,11 @@ public class GroqClient {
             return;
         }
 
-        String chosenModel = (model != null && !model.trim().isEmpty()) ? model.trim() : "llama-3.3-70b-versatile";
+        String resolved = resolveModel(model, tone, draft != null && !draft.trim().isEmpty());
 
         executor.execute(() -> {
             try {
-                JSONObject payload = buildPayload(chosenModel, tone, context, draft, language);
+                JSONObject payload = buildPayload(resolved, tone, context, draft, language);
                 RequestBody body = RequestBody.create(payload.toString(), JSON_MEDIA_TYPE);
 
                 Request request = new Request.Builder()
@@ -104,11 +118,16 @@ public class GroqClient {
 
         JSONArray messages = new JSONArray();
 
-        // System prompt
         String toneInstruction = "warm, friendly, and natural";
-        if ("Formal".equalsIgnoreCase(tone)) toneInstruction = "polite, professional, and clear";
-        else if ("Direct".equalsIgnoreCase(tone)) toneInstruction = "concise, direct, and under 10 words";
-        else if ("Fix".equalsIgnoreCase(tone)) toneInstruction = "polished, well-phrased, and free of typos";
+        if (tone != null && (tone.toLowerCase().contains("formal") || tone.toLowerCase().contains("💼"))) {
+            toneInstruction = "polite, professional, and clear";
+        } else if (tone != null && (tone.toLowerCase().contains("direct") || tone.toLowerCase().contains("⚡"))) {
+            toneInstruction = "concise, direct, and under 10 words";
+        } else if (tone != null && (tone.toLowerCase().contains("fix") || tone.toLowerCase().contains("✍️"))) {
+            toneInstruction = "polished, well-phrased, and free of typos";
+        } else if (tone != null && (tone.toLowerCase().contains("think") || tone.toLowerCase().contains("🧠"))) {
+            toneInstruction = "sharp, analytical, calculating any math or decision logic carefully";
+        }
 
         String langInstruction = "Reply in the same language and script as the chat context (supports English, Hindi, Hinglish, Kannada).";
         if ("hi".equalsIgnoreCase(language)) {
@@ -178,6 +197,8 @@ public class GroqClient {
             if (message == null) return results;
 
             String content = message.optString("content", "").trim();
+            // Clean DeepSeek-R1 chain-of-thought tags if present
+            content = content.replaceAll("(?s)<think>.*?</think>", "").trim();
 
             // Extract JSON from content
             JSONObject parsed = null;

@@ -32,13 +32,20 @@ public class MainActivity extends AppCompatActivity {
     private static final String KEY_MODEL = "groq_model";
     private static final int REQ_MIC_PERMISSION = 101;
 
-    private final List<String> MODELS = Arrays.asList(
+    private final List<String> MODEL_NAMES = Arrays.asList(
+            "⚡ Auto-Smart (Recommended: Fastest & Smartest)",
+            "🚀 Ultra-Fast (llama-3.1-8b-instant)",
+            "🌟 Flagship Quality (llama-3.3-70b-versatile)",
+            "🧠 Deep Thinker (deepseek-r1-distill-llama-70b)",
+            "🌐 Multilingual Specialist (deepseek-r1-distill-qwen-32b)"
+    );
+
+    private final List<String> MODEL_KEYS = Arrays.asList(
+            "auto-smart",
+            "llama-3.1-8b-instant",
             "llama-3.3-70b-versatile",
-            "qwen/qwen3.8-27b",
-            "llama3-70b-8192",
-            "llama3-8b-8192",
-            "gemma2-9b-it",
-            "mixtral-8x7b-32768"
+            "deepseek-r1-distill-llama-70b",
+            "deepseek-r1-distill-qwen-32b"
     );
 
     private EditText etApiKey;
@@ -62,28 +69,30 @@ public class MainActivity extends AppCompatActivity {
         tvNotifStatus = findViewById(R.id.tv_notif_status);
         tvMicStatus = findViewById(R.id.tv_mic_status);
 
-        // Populate Model dropdown
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, MODELS);
+        // Populate Model dropdown with human-friendly names
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, MODEL_NAMES);
         spModel.setAdapter(adapter);
 
         // Load saved settings
         SharedPreferences prefs = getSharedPreferences(PREFS_SETTINGS, Context.MODE_PRIVATE);
         String savedKey = prefs.getString(KEY_API_KEY, "");
-        String savedModel = prefs.getString(KEY_MODEL, "llama-3.3-70b-versatile");
+        String savedModel = prefs.getString(KEY_MODEL, "auto-smart");
 
         etApiKey.setText(savedKey);
-        int modelIdx = MODELS.indexOf(savedModel);
-        if (modelIdx >= 0) spModel.setSelection(modelIdx);
+        int modelIdx = MODEL_KEYS.indexOf(savedModel);
+        if (modelIdx < 0) modelIdx = 0; // Default to Auto-Smart
+        spModel.setSelection(modelIdx);
 
         if (!savedKey.isEmpty()) {
-            tvStatus.setText("✓ Groq API Key Saved (" + savedModel + ")");
+            tvStatus.setText("✓ Groq API Key Saved (" + MODEL_NAMES.get(modelIdx) + ")");
         }
 
         // Save & Test Button
         Button btnSave = findViewById(R.id.btn_save);
         btnSave.setOnClickListener(v -> {
             String key = etApiKey.getText().toString().trim();
-            String model = (String) spModel.getSelectedItem();
+            int selectedPos = spModel.getSelectedItemPosition();
+            String modelKey = (selectedPos >= 0 && selectedPos < MODEL_KEYS.size()) ? MODEL_KEYS.get(selectedPos) : "auto-smart";
 
             if (!key.startsWith("gsk_")) {
                 Toast.makeText(this, "Key should start with gsk_...", Toast.LENGTH_SHORT).show();
@@ -91,14 +100,14 @@ public class MainActivity extends AppCompatActivity {
 
             prefs.edit()
                     .putString(KEY_API_KEY, key)
-                    .putString(KEY_MODEL, model)
+                    .putString(KEY_MODEL, modelKey)
                     .apply();
 
-            tvStatus.setText("✓ Saved! Testing connection to Groq...");
+            tvStatus.setText("✓ Saved! Testing connection to Groq (" + modelKey + ")...");
 
             // Test connection
             GroqClient testClient = new GroqClient();
-            testClient.generateReplies(key, model, "Warm", "Hello there!", "", "en", new GroqClient.Callback() {
+            testClient.generateReplies(key, modelKey, "Warm", "Hello there!", "", "en", new GroqClient.Callback() {
                 @Override
                 public void onSuccess(List<String> suggestions) {
                     tvStatus.setText("✓ Groq Connected! " + suggestions.size() + " suggestions ready.");

@@ -1,4 +1,5 @@
 # Built application binaries
+*.apk
 *.apk.idsig
 
 # Gradle cache & build files
