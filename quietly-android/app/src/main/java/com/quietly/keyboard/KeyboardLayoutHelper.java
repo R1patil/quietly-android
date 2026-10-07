@@ -27,6 +27,7 @@ public class KeyboardLayoutHelper {
         void onKeyShift();
         void onLanguageChanged(String langCode, String langName);
         void onVoiceInputClicked();
+        void onStickerSelected(StickerItem sticker);
     }
 
     // Supported Languages
@@ -99,7 +100,9 @@ public class KeyboardLayoutHelper {
     private boolean isShifted = false;
     private boolean isSymbolsMode = false;
     private boolean isEmojiMode = false;
+    private boolean isStickerMode = false;
     private int emojiCategoryIndex = 0;
+    private int stickerCategoryIndex = 0;
     private int currentLangIndex = 0; // 0=EN, 1=HI, 2=KN
 
     private Button spaceBtn;
@@ -145,7 +148,9 @@ public class KeyboardLayoutHelper {
         r2LetterButtons.clear();
         r3LetterButtons.clear();
 
-        if (isEmojiMode) {
+        if (isStickerMode) {
+            buildStickerLayout();
+        } else if (isEmojiMode) {
             buildEmojiLayout();
         } else if (isSymbolsMode) {
             buildSymbolsLayout();
@@ -207,6 +212,7 @@ public class KeyboardLayoutHelper {
         Button symBtn = createActionButton("?123", 1.2f, v -> {
             isSymbolsMode = true;
             isEmojiMode = false;
+            isStickerMode = false;
             refreshLayout();
         });
         r4.addView(symBtn);
@@ -216,6 +222,7 @@ public class KeyboardLayoutHelper {
 
         Button emojiBtn = createActionButton("😊", 0.9f, v -> {
             isEmojiMode = true;
+            isStickerMode = false;
             isSymbolsMode = false;
             refreshLayout();
         });
@@ -256,12 +263,14 @@ public class KeyboardLayoutHelper {
         Button abcBtn = createActionButton("ABC", 1.2f, v -> {
             isSymbolsMode = false;
             isEmojiMode = false;
+            isStickerMode = false;
             refreshLayout();
         });
         r4.addView(abcBtn);
 
         Button emojiBtn = createActionButton("😊", 0.9f, v -> {
             isEmojiMode = true;
+            isStickerMode = false;
             isSymbolsMode = false;
             refreshLayout();
         });
@@ -298,17 +307,25 @@ public class KeyboardLayoutHelper {
         Button backspaceBtn = createRepeatingBackspaceButton(1.4f);
         r3.addView(backspaceBtn);
 
-        // Row 4: ABC, Category Switchers, Space, Enter
-        Button abcBtn = createActionButton("ABC", 1.3f, v -> {
+        // Row 4: ABC, Sticker Switcher, Category Switchers, Space, Enter
+        Button abcBtn = createActionButton("ABC", 1.1f, v -> {
             isEmojiMode = false;
+            isStickerMode = false;
             isSymbolsMode = false;
             refreshLayout();
         });
         r4.addView(abcBtn);
 
+        Button stickerTabBtn = createActionButton("🏷️", 0.9f, v -> {
+            isEmojiMode = false;
+            isStickerMode = true;
+            refreshLayout();
+        });
+        r4.addView(stickerTabBtn);
+
         for (int i = 0; i < EMOJI_CAT_ICONS.length; i++) {
             final int catIdx = i;
-            Button catBtn = createActionButton(EMOJI_CAT_ICONS[i], 1.0f, v -> {
+            Button catBtn = createActionButton(EMOJI_CAT_ICONS[i], 0.9f, v -> {
                 emojiCategoryIndex = catIdx;
                 refreshLayout();
             });
@@ -318,7 +335,62 @@ public class KeyboardLayoutHelper {
             r4.addView(catBtn);
         }
 
-        Button space = createSpaceButton("Space", 2.8f);
+        Button space = createSpaceButton("Space", 2.0f);
+        r4.addView(space);
+
+        Button enterBtn = createEnterButton(1.3f);
+        r4.addView(enterBtn);
+    }
+
+    private void buildStickerLayout() {
+        List<StickerItem> stickers = StickerHelper.getStickersForCategory(stickerCategoryIndex);
+
+        // Row 1: 4 stickers (index 0 to 3)
+        for (int i = 0; i < 4 && i < stickers.size(); i++) {
+            r1.addView(createStickerButton(stickers.get(i), 1.0f));
+        }
+
+        // Row 2: 4 stickers (index 4 to 7)
+        for (int i = 4; i < 8 && i < stickers.size(); i++) {
+            r2.addView(createStickerButton(stickers.get(i), 1.0f));
+        }
+
+        // Row 3: 3 stickers (index 8 to 10) + Backspace
+        for (int i = 8; i < 11 && i < stickers.size(); i++) {
+            r3.addView(createStickerButton(stickers.get(i), 1.0f));
+        }
+        Button backspaceBtn = createRepeatingBackspaceButton(1.3f);
+        r3.addView(backspaceBtn);
+
+        // Row 4: ABC, Emoji Tab Switcher, Category Switchers, Enter
+        Button abcBtn = createActionButton("ABC", 1.1f, v -> {
+            isStickerMode = false;
+            isEmojiMode = false;
+            isSymbolsMode = false;
+            refreshLayout();
+        });
+        r4.addView(abcBtn);
+
+        Button emojiTabBtn = createActionButton("😊", 0.9f, v -> {
+            isStickerMode = false;
+            isEmojiMode = true;
+            refreshLayout();
+        });
+        r4.addView(emojiTabBtn);
+
+        for (int i = 0; i < StickerHelper.CATEGORY_ICONS.length; i++) {
+            final int catIdx = i;
+            Button catBtn = createActionButton(StickerHelper.CATEGORY_ICONS[i], 1.0f, v -> {
+                stickerCategoryIndex = catIdx;
+                refreshLayout();
+            });
+            if (stickerCategoryIndex == catIdx) {
+                catBtn.setBackgroundResource(R.drawable.key_background_action);
+            }
+            r4.addView(catBtn);
+        }
+
+        Button space = createSpaceButton("Space", 1.8f);
         r4.addView(space);
 
         Button enterBtn = createEnterButton(1.3f);
@@ -384,6 +456,7 @@ public class KeyboardLayoutHelper {
         isShifted = false;
         isSymbolsMode = false;
         isEmojiMode = false;
+        isStickerMode = false;
         refreshLayout();
         listener.onLanguageChanged(LANG_CODES[currentLangIndex], LANG_NAMES[currentLangIndex]);
     }
@@ -426,6 +499,26 @@ public class KeyboardLayoutHelper {
         btn.setOnClickListener(v -> {
             triggerFeedback(v, AudioManager.FX_KEYPRESS_STANDARD);
             listener.onKeyString(emoji);
+        });
+        return btn;
+    }
+
+    private Button createStickerButton(final StickerItem item, float weight) {
+        Button btn = new Button(context);
+        btn.setText(item.getEmoji() + " " + item.getTitle());
+        btn.setTextColor(ContextCompat.getColor(context, R.color.kb_key_text));
+        btn.setTextSize(10.5f);
+        btn.setBackgroundResource(R.drawable.key_background);
+        btn.setGravity(Gravity.CENTER);
+        btn.setPadding(2, 0, 2, 0);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, weight);
+        lp.setMargins(2, 0, 2, 0);
+        btn.setLayoutParams(lp);
+
+        btn.setOnClickListener(v -> {
+            triggerFeedback(v, AudioManager.FX_KEYPRESS_STANDARD);
+            listener.onStickerSelected(item);
         });
         return btn;
     }

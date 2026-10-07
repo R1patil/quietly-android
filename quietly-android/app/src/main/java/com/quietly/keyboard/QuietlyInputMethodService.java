@@ -1,10 +1,12 @@
 package com.quietly.keyboard;
 
 import android.content.ClipData;
+import android.content.ClipDescription;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.inputmethodservice.InputMethodService;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.KeyEvent;
@@ -16,7 +18,12 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
+import androidx.core.view.inputmethod.EditorInfoCompat;
+import androidx.core.view.inputmethod.InputConnectionCompat;
+import androidx.core.view.inputmethod.InputContentInfoCompat;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 
@@ -55,6 +62,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         groqClient = new GroqClient();
         voiceInputHelper = new VoiceInputHelper(this, this);
         WordSuggestionHelper.init(this);
+        StickerHelper.preloadStickers(this);
     }
 
     @Override
@@ -560,6 +568,76 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
     @Override
     public void onVoiceInputClicked() {
         toggleVoiceInput();
+    }
+
+    @Override
+    public void onStickerSelected(StickerItem sticker) {
+        if (sticker == null) return;
+        commitStickerMedia(sticker);
+    }
+
+    private void commitStickerMedia(StickerItem sticker) {
+        InputConnection ic = getCurrentInputConnection();
+        EditorInfo editorInfo = getCurrentInputEditorInfo();
+        if (ic == null) return;
+
+        try {
+            File stickerFile = StickerHelper.getOrGenerateStickerFile(this, sticker);
+            if (!stickerFile.exists()) {
+                ic.commitText(sticker.getFallbackText() + " ", 1);
+                return;
+            }
+
+            // Check if current focused app (WhatsApp, Telegram, Messages, etc.) accepts PNG images
+            boolean isSupported = false;
+            if (editorInfo != null) {
+                String[] contentMimeTypes = EditorInfoCompat.getContentMimeTypes(editorInfo);
+                if (contentMimeTypes != null) {
+                    for (String mime : contentMimeTypes) {
+                        if (ClipDescription.compareMimeTypes(mime, "image/png")
+                                || ClipDescription.compareMimeTypes(mime, "image/*")) {
+                            isSupported = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (isSupported && editorInfo != null) {
+                Uri contentUri = FileProvider.getUriForFile(
+                        this,
+                        getPackageName() + ".fileprovider",
+                        stickerFile
+                );
+
+                InputContentInfoCompat inputContentInfo = new InputContentInfoCompat(
+                        contentUri,
+                        new ClipDescription(sticker.getTitle(), new String[]{"image/png"}),
+                        null
+                );
+
+                boolean committed = InputConnectionCompat.commitContent(
+                        ic,
+                        editorInfo,
+                        inputContentInfo,
+                        InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION,
+                        null
+                );
+
+                if (committed) {
+                    Toast.makeText(this, "Sticker sent! 🏷️", Toast.LENGTH_SHORT).show();
+                } else {
+                    ic.commitText(sticker.getFallbackText() + " ", 1);
+                    Toast.makeText(this, "Sent as emoji (app refused sticker)", Toast.LENGTH_SHORT).show();
+                }
+            } else {
+                // Focused app doesn't support rich content; send emoji text
+                ic.commitText(sticker.getFallbackText() + " ", 1);
+                Toast.makeText(this, "Sent as emoji (app doesn't support rich stickers)", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            ic.commitText(sticker.getFallbackText() + " ", 1);
+        }
     }
 
     // --- VoiceInputHelper.VoiceCallback implementation ---
