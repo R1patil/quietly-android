@@ -5,6 +5,8 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.inputmethodservice.InputMethodService;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
@@ -22,6 +24,16 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
     private static final String PREFS_SETTINGS = "quietly_settings";
     private static final String KEY_API_KEY = "groq_api_key";
     private static final String KEY_MODEL = "groq_model";
+
+    private static final int BAR_STATE_NONE = 0;
+    private static final int BAR_STATE_SHORTCUTS = 1;
+    private static final int BAR_STATE_PROMPT = 2;
+    private static final int BAR_STATE_SUGGESTIONS = 3;
+    private int currentBarState = BAR_STATE_NONE;
+    private String cachedContext = "";
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Runnable draftUpdateRunnable = this::updateDraftStateSync;
 
     private final String[] TONES = {"Warm 🌟", "Formal 💼", "Direct ⚡", "Fix ✍️"};
     private int currentToneIndex = 0;
@@ -79,9 +91,9 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         super.onStartInputView(info, restarting);
 
         // Fetch best live or notification context
-        String context = getBestAvailableContext();
-        if (!context.isEmpty()) {
-            String preview = context.length() > 24 ? context.substring(0, 24) + "…" : context;
+        cachedContext = getBestAvailableContext();
+        if (!cachedContext.isEmpty()) {
+            String preview = cachedContext.length() > 24 ? cachedContext.substring(0, 24) + "…" : cachedContext;
             if (tvContextPreview != null) {
                 tvContextPreview.setText("💬 Context: \"" + preview + "\"");
             }
@@ -95,6 +107,10 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
 
     private void showReplyPromptChip(String context) {
         if (chipsContainer == null) return;
+        if (currentBarState == BAR_STATE_PROMPT && chipsContainer.getChildCount() == 1) {
+            return;
+        }
+        currentBarState = BAR_STATE_PROMPT;
         chipsContainer.removeAllViews();
 
         TextView promptChip = new TextView(this);
@@ -119,6 +135,10 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
 
     private void setupInitialSuggestions() {
         if (chipsContainer == null) return;
+        if (currentBarState == BAR_STATE_SHORTCUTS && chipsContainer.getChildCount() == 3) {
+            return;
+        }
+        currentBarState = BAR_STATE_SHORTCUTS;
         chipsContainer.removeAllViews();
 
         String[] quickOptions = {"✨ Tap Suggest", "🎙️ Voice Type", "🌐 Switch Lang"};
@@ -292,6 +312,11 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
     }
 
     private void updateDraftState() {
+        mainHandler.removeCallbacks(draftUpdateRunnable);
+        mainHandler.postDelayed(draftUpdateRunnable, 300);
+    }
+
+    private void updateDraftStateSync() {
         InputConnection ic = getCurrentInputConnection();
         String draft = "";
         if (ic != null) {
@@ -311,10 +336,12 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
             if (btnAiSuggest != null) {
                 btnAiSuggest.setText("✨ Suggest");
             }
-            String context = getBestAvailableContext();
+            if (cachedContext.isEmpty()) {
+                cachedContext = getBestAvailableContext();
+            }
             if (tvContextPreview != null) {
-                if (!context.isEmpty()) {
-                    String preview = context.length() > 24 ? context.substring(0, 24) + "…" : context;
+                if (!cachedContext.isEmpty()) {
+                    String preview = cachedContext.length() > 24 ? cachedContext.substring(0, 24) + "…" : cachedContext;
                     tvContextPreview.setText("💬 Context: \"" + preview + "\"");
                 } else {
                     tvContextPreview.setText("💡 Tap ✨ Suggest to generate 3 replies");
@@ -323,7 +350,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         }
     }
 
-    // --- Real-time Word Suggestions Bar ---
+    // --- Real-time Word Suggestions Bar (High performance zero-allocation) ---
 
     private void updateWordSuggestions() {
         InputConnection ic = getCurrentInputConnection();
@@ -339,9 +366,8 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         }
 
         // When no active word is being typed, show context or default shortcuts
-        String context = getBestAvailableContext();
-        if (!context.isEmpty()) {
-            showReplyPromptChip(context);
+        if (!cachedContext.isEmpty()) {
+            showReplyPromptChip(cachedContext);
         } else {
             setupInitialSuggestions();
         }
@@ -349,11 +375,29 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
 
     private void displayWordSuggestions(final List<String> suggestions, final String activeWord) {
         if (chipsContainer == null) return;
+
+        // If we already have 3 suggestion views in the container, update in-place without reallocation
+        if (currentBarState == BAR_STATE_SUGGESTIONS && chipsContainer.getChildCount() == 3) {
+            for (int i = 0; i < 3; i++) {
+                TextView chip = (TextView) chipsContainer.getChildAt(i);
+                if (i < suggestions.size()) {
+                    final String suggestion = suggestions.get(i);
+                    chip.setText(suggestion);
+                    chip.setVisibility(View.VISIBLE);
+                    chip.setOnClickListener(v -> onSuggestionSelected(suggestion, activeWord));
+                } else {
+                    chip.setVisibility(View.GONE);
+                }
+            }
+            return;
+        }
+
+        // Initial setup for suggestions mode
+        currentBarState = BAR_STATE_SUGGESTIONS;
         chipsContainer.removeAllViews();
 
-        for (final String suggestion : suggestions) {
+        for (int i = 0; i < 3; i++) {
             TextView chip = new TextView(this);
-            chip.setText(suggestion);
             chip.setTextColor(ContextCompat.getColor(this, R.color.on_primary));
             chip.setBackgroundResource(R.drawable.chip_background);
             chip.setTextSize(13f);
@@ -368,19 +412,28 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
             lp.setMargins(3, 2, 3, 2);
             chip.setLayoutParams(lp);
 
-            chip.setOnClickListener(v -> {
-                InputConnection ic = getCurrentInputConnection();
-                if (ic != null) {
-                    if (activeWord != null && activeWord.length() > 0) {
-                        ic.deleteSurroundingText(activeWord.length(), 0);
-                    }
-                    ic.commitText(suggestion + " ", 1);
-                    updateDraftState();
-                    updateWordSuggestions();
-                }
-            });
+            if (i < suggestions.size()) {
+                final String suggestion = suggestions.get(i);
+                chip.setText(suggestion);
+                chip.setVisibility(View.VISIBLE);
+                chip.setOnClickListener(v -> onSuggestionSelected(suggestion, activeWord));
+            } else {
+                chip.setVisibility(View.GONE);
+            }
 
             chipsContainer.addView(chip);
+        }
+    }
+
+    private void onSuggestionSelected(String suggestion, String activeWord) {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic != null) {
+            if (activeWord != null && activeWord.length() > 0) {
+                ic.deleteSurroundingText(activeWord.length(), 0);
+            }
+            ic.commitText(suggestion + " ", 1);
+            updateDraftStateSync();
+            updateWordSuggestions();
         }
     }
 
@@ -426,7 +479,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         InputConnection ic = getCurrentInputConnection();
         if (ic != null) {
             sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER);
-            updateDraftState();
+            updateDraftStateSync();
             updateWordSuggestions();
         }
     }
@@ -436,7 +489,7 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
         InputConnection ic = getCurrentInputConnection();
         if (ic != null) {
             ic.commitText(" ", 1);
-            updateDraftState();
+            updateDraftStateSync();
             updateWordSuggestions();
         }
     }
