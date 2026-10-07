@@ -17,6 +17,7 @@ import android.widget.Toast;
 
 import androidx.core.content.ContextCompat;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class QuietlyInputMethodService extends InputMethodService implements KeyboardLayoutHelper.KeyListener, VoiceInputHelper.VoiceCallback {
@@ -255,7 +256,12 @@ public class QuietlyInputMethodService extends InputMethodService implements Key
     private void triggerAiSuggestions(boolean isToneChange) {
         SharedPreferences prefs = getSharedPreferences(PREFS_SETTINGS, Context.MODE_PRIVATE);
         String apiKey = prefs.getString(KEY_API_KEY, "");
-        String model = prefs.getString(KEY_MODEL, "llama-3.3-70b-versatile");
+        String model = prefs.getString(KEY_MODEL, "auto-smart");
+
+        String cachedModels = prefs.getString("groq_eligible_models", "");
+        if (!cachedModels.isEmpty()) {
+            GroqClient.setCachedEligibleModels(Arrays.asList(cachedModels.split(",")));
+        }
 
         if (apiKey.isEmpty()) {
             Toast.makeText(this, "Please set your Groq API key in Quietly app", Toast.LENGTH_SHORT).show();

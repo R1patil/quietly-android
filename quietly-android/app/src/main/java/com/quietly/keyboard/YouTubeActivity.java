@@ -18,6 +18,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import org.json.JSONArray;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class YouTubeActivity extends AppCompatActivity {
@@ -41,7 +42,11 @@ public class YouTubeActivity extends AppCompatActivity {
 
         SharedPreferences prefs = getSharedPreferences(PREFS_SETTINGS, Context.MODE_PRIVATE);
         apiKey = prefs.getString(KEY_API_KEY, "");
-        model = prefs.getString(KEY_MODEL, "qwen/qwen3.8-27b");
+        model = prefs.getString(KEY_MODEL, "auto-smart");
+        String cached = prefs.getString("groq_eligible_models", "");
+        if (!cached.isEmpty()) {
+            GroqClient.setCachedEligibleModels(Arrays.asList(cached.split(",")));
+        }
 
         groqClient = new GroqClient();
 

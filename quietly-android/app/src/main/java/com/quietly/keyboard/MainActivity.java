@@ -22,31 +22,22 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String PREFS_SETTINGS = "quietly_settings";
-    private static final String KEY_API_KEY = "groq_api_key";
-    private static final String KEY_MODEL = "groq_model";
+    public static final String PREFS_SETTINGS = "quietly_settings";
+    public static final String KEY_API_KEY = "groq_api_key";
+    public static final String KEY_MODEL = "groq_model";
+    public static final String KEY_ELIGIBLE_MODELS = "groq_eligible_models";
     private static final int REQ_MIC_PERMISSION = 101;
 
-    private final List<String> MODEL_NAMES = Arrays.asList(
-            "⚡ Auto-Smart (Recommended: Fastest & Smartest)",
-            "🚀 Ultra-Fast (llama-3.1-8b-instant)",
-            "🌟 Flagship Quality (llama-3.3-70b-versatile)",
-            "🧠 Deep Thinker (deepseek-r1-distill-llama-70b)",
-            "🌐 Multilingual Specialist (deepseek-r1-distill-qwen-32b)"
-    );
-
-    private final List<String> MODEL_KEYS = Arrays.asList(
-            "auto-smart",
-            "llama-3.1-8b-instant",
-            "llama-3.3-70b-versatile",
-            "deepseek-r1-distill-llama-70b",
-            "deepseek-r1-distill-qwen-32b"
-    );
+    private final List<String> modelDisplayNames = new ArrayList<>();
+    private final List<String> modelKeys = new ArrayList<>();
+    private ArrayAdapter<String> modelAdapter;
+    private GroqClient groqClient;
 
     private EditText etApiKey;
     private Spinner spModel;
@@ -61,6 +52,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        groqClient = new GroqClient();
+
         etApiKey = findViewById(R.id.et_api_key);
         spModel = findViewById(R.id.sp_model);
         tvStatus = findViewById(R.id.tv_status);
@@ -69,55 +62,89 @@ public class MainActivity extends AppCompatActivity {
         tvNotifStatus = findViewById(R.id.tv_notif_status);
         tvMicStatus = findViewById(R.id.tv_mic_status);
 
-        // Populate Model dropdown with human-friendly names
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, MODEL_NAMES);
-        spModel.setAdapter(adapter);
+        // Setup Model Spinner adapter
+        modelAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, modelDisplayNames);
+        spModel.setAdapter(modelAdapter);
 
         // Load saved settings
         SharedPreferences prefs = getSharedPreferences(PREFS_SETTINGS, Context.MODE_PRIVATE);
         String savedKey = prefs.getString(KEY_API_KEY, "");
         String savedModel = prefs.getString(KEY_MODEL, "auto-smart");
+        String cachedModelsRaw = prefs.getString(KEY_ELIGIBLE_MODELS, "");
+
+        List<String> cachedList = parseModelsList(cachedModelsRaw);
+        if (!cachedList.isEmpty()) {
+            GroqClient.setCachedEligibleModels(cachedList);
+            updateModelSpinner(cachedList, savedModel);
+        } else {
+            updateModelSpinner(null, "auto-smart");
+        }
 
         etApiKey.setText(savedKey);
-        int modelIdx = MODEL_KEYS.indexOf(savedModel);
-        if (modelIdx < 0) modelIdx = 0; // Default to Auto-Smart
-        spModel.setSelection(modelIdx);
 
         if (!savedKey.isEmpty()) {
-            tvStatus.setText("✓ Groq API Key Saved (" + MODEL_NAMES.get(modelIdx) + ")");
+            tvStatus.setText("✓ Groq API Key Saved (" + savedModel + ")");
+            // Check eligibility in background to refresh models list
+            checkModelEligibility(savedKey, false, null);
+        }
+
+        // 🔍 Check Eligibility Button
+        Button btnCheckModels = findViewById(R.id.btn_check_models);
+        if (btnCheckModels != null) {
+            btnCheckModels.setOnClickListener(v -> {
+                String key = etApiKey.getText().toString().trim();
+                if (key.isEmpty()) {
+                    Toast.makeText(this, "Please enter your Groq API key first", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                checkModelEligibility(key, true, null);
+            });
         }
 
         // Save & Test Button
         Button btnSave = findViewById(R.id.btn_save);
         btnSave.setOnClickListener(v -> {
             String key = etApiKey.getText().toString().trim();
-            int selectedPos = spModel.getSelectedItemPosition();
-            String modelKey = (selectedPos >= 0 && selectedPos < MODEL_KEYS.size()) ? MODEL_KEYS.get(selectedPos) : "auto-smart";
+            if (key.isEmpty()) {
+                Toast.makeText(this, "Please enter your Groq API key", Toast.LENGTH_SHORT).show();
+                return;
+            }
 
             if (!key.startsWith("gsk_")) {
                 Toast.makeText(this, "Key should start with gsk_...", Toast.LENGTH_SHORT).show();
             }
 
-            prefs.edit()
-                    .putString(KEY_API_KEY, key)
-                    .putString(KEY_MODEL, modelKey)
-                    .apply();
+            int selectedPos = spModel.getSelectedItemPosition();
+            String chosenModelKey = (selectedPos >= 0 && selectedPos < modelKeys.size())
+                    ? modelKeys.get(selectedPos) : "auto-smart";
 
-            tvStatus.setText("✓ Saved! Testing connection to Groq (" + modelKey + ")...");
+            // Verify eligibility first, then test and save
+            tvStatus.setText("⏳ Checking model eligibility with Groq API...");
+            checkModelEligibility(key, false, () -> {
+                int posAfter = spModel.getSelectedItemPosition();
+                String finalModelKey = (posAfter >= 0 && posAfter < modelKeys.size())
+                        ? modelKeys.get(posAfter) : chosenModelKey;
 
-            // Test connection
-            GroqClient testClient = new GroqClient();
-            testClient.generateReplies(key, modelKey, "Warm", "Hello there!", "", "en", new GroqClient.Callback() {
-                @Override
-                public void onSuccess(List<String> suggestions) {
-                    tvStatus.setText("✓ Groq Connected! " + suggestions.size() + " suggestions ready.");
-                    Toast.makeText(MainActivity.this, "Groq Connected Successfully!", Toast.LENGTH_SHORT).show();
-                }
+                prefs.edit()
+                        .putString(KEY_API_KEY, key)
+                        .putString(KEY_MODEL, finalModelKey)
+                        .apply();
 
-                @Override
-                public void onError(String error) {
-                    tvStatus.setText("⚠ Groq error: " + error);
-                }
+                String resolvedTestModel = GroqClient.resolveModel(finalModelKey, "Warm", false);
+                tvStatus.setText("⏳ Testing connection with eligible model (" + resolvedTestModel + ")...");
+
+                groqClient.generateReplies(key, finalModelKey, "Warm", "Hello there!", "", "en", new GroqClient.Callback() {
+                    @Override
+                    public void onSuccess(List<String> suggestions) {
+                        tvStatus.setText("✓ Groq Connected! Model `" + resolvedTestModel + "` verified (" + suggestions.size() + " suggestions ready).");
+                        Toast.makeText(MainActivity.this, "Groq Connected Successfully with " + resolvedTestModel + "!", Toast.LENGTH_SHORT).show();
+                    }
+
+                    @Override
+                    public void onError(String error) {
+                        tvStatus.setText("⚠ Groq error: " + error);
+                    }
+                });
             });
         });
 
@@ -232,5 +259,106 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == REQ_MIC_PERMISSION) {
             updatePermissionBadges();
         }
+    }
+
+    private List<String> parseModelsList(String raw) {
+        List<String> list = new ArrayList<>();
+        if (raw != null && !raw.trim().isEmpty()) {
+            String[] parts = raw.split(",");
+            for (String p : parts) {
+                String trimmed = p.trim();
+                if (!trimmed.isEmpty() && !list.contains(trimmed)) {
+                    list.add(trimmed);
+                }
+            }
+        }
+        return list;
+    }
+
+    private void updateModelSpinner(List<String> eligibleModels, String selectedKey) {
+        modelDisplayNames.clear();
+        modelKeys.clear();
+
+        // 1. Auto-Smart option always at index 0
+        modelDisplayNames.add("⚡ Auto-Smart (Recommended: Fastest & Smartest)");
+        modelKeys.add("auto-smart");
+
+        if (eligibleModels != null) {
+            for (String modelId : eligibleModels) {
+                if ("auto-smart".equalsIgnoreCase(modelId)) continue;
+                modelDisplayNames.add(formatModelLabel(modelId));
+                modelKeys.add(modelId);
+            }
+        }
+
+        modelAdapter.notifyDataSetChanged();
+
+        // Restore selected key
+        int selIdx = 0;
+        if (selectedKey != null && !selectedKey.isEmpty()) {
+            int found = modelKeys.indexOf(selectedKey);
+            if (found >= 0) selIdx = found;
+        }
+        spModel.setSelection(selIdx);
+    }
+
+    private String formatModelLabel(String modelId) {
+        String mLower = modelId.toLowerCase();
+        if (mLower.contains("120b") || mLower.contains("70b") || mLower.contains("versatile")) {
+            return "🌟 " + modelId + " (Flagship Quality)";
+        } else if (mLower.contains("qwen") || mLower.contains("allam")) {
+            return "🌐 " + modelId + " (Multilingual)";
+        } else if (mLower.contains("8b") || mLower.contains("20b") || mLower.contains("mini") || mLower.contains("instant")) {
+            return "🚀 " + modelId + " (Ultra-Fast)";
+        } else if (mLower.contains("reason") || mLower.contains("think") || mLower.contains("compound")) {
+            return "🧠 " + modelId + " (Reasoning)";
+        }
+        return "🤖 " + modelId;
+    }
+
+    private void checkModelEligibility(String apiKey, boolean showToast, Runnable onComplete) {
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+            if (showToast) Toast.makeText(this, "Please enter your Groq API key first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        tvStatus.setText("⏳ Checking model eligibility with Groq API...");
+
+        groqClient.fetchEligibleModels(apiKey, new GroqClient.ModelsCallback() {
+            @Override
+            public void onSuccess(List<String> eligibleModels) {
+                // Save cached list to SharedPreferences
+                String serialized = TextUtils.join(",", eligibleModels);
+                getSharedPreferences(PREFS_SETTINGS, Context.MODE_PRIVATE)
+                        .edit()
+                        .putString(KEY_ELIGIBLE_MODELS, serialized)
+                        .apply();
+
+                GroqClient.setCachedEligibleModels(eligibleModels);
+
+                // Preserve current selection if valid
+                int pos = spModel.getSelectedItemPosition();
+                String currKey = (pos >= 0 && pos < modelKeys.size()) ? modelKeys.get(pos) : "auto-smart";
+
+                updateModelSpinner(eligibleModels, currKey);
+
+                tvStatus.setText("✓ Found " + eligibleModels.size() + " eligible models for your account!");
+                if (showToast) {
+                    Toast.makeText(MainActivity.this, "Found " + eligibleModels.size() + " eligible models!", Toast.LENGTH_SHORT).show();
+                }
+
+                if (onComplete != null) {
+                    onComplete.run();
+                }
+            }
+
+            @Override
+            public void onError(String error) {
+                tvStatus.setText("⚠ Groq error checking eligibility: " + error);
+                if (showToast) {
+                    Toast.makeText(MainActivity.this, "Error: " + error, Toast.LENGTH_LONG).show();
+                }
+            }
+        });
     }
 }

@@ -74,14 +74,34 @@
                 android:layout_marginTop="6dp"
                 android:background="@drawable/key_background" />
 
-            <Button
-                android:id="@+id/btn_save"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
-                android:backgroundTint="@color/primary"
-                android:text="@string/btn_save_key"
-                android:textColor="@color/on_primary" />
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btn_check_models"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:backgroundTint="@color/kb_key_bg"
+                    android:text="🔍 Check Eligibility"
+                    android:textColor="@color/on_primary"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btn_save"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="4dp"
+                    android:backgroundTint="@color/primary"
+                    android:text="@string/btn_save_key"
+                    android:textColor="@color/on_primary"
+                    android:textSize="12sp" />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/tv_status"

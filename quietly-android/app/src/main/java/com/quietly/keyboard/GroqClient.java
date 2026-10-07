@@ -40,18 +40,141 @@ public class GroqClient {
         this.mainHandler = new Handler(Looper.getMainLooper());
     }
 
-    public static String resolveModel(String model, String tone, boolean hasDraft) {
-        if (model == null || model.isEmpty() || "auto-smart".equalsIgnoreCase(model) || "auto".equalsIgnoreCase(model)) {
-            if (tone != null && (tone.toLowerCase().contains("think") || tone.toLowerCase().contains("🧠"))) {
-                return "deepseek-r1-distill-llama-70b"; // Deep reasoning for calculations & tough questions
-            } else if (tone != null && (tone.toLowerCase().contains("formal") || tone.toLowerCase().contains("💼"))) {
-                return "llama-3.3-70b-versatile"; // Flagship nuance for executive communication
-            } else {
-                // Ultra-low-latency 850+ tok/s for instant response & draft polish
-                return "llama-3.1-8b-instant";
+    private static volatile List<String> cachedEligibleModels = new ArrayList<>();
+
+    public static void setCachedEligibleModels(List<String> models) {
+        if (models != null && !models.isEmpty()) {
+            cachedEligibleModels = new ArrayList<>(models);
+        }
+    }
+
+    public static List<String> getCachedEligibleModels() {
+        return cachedEligibleModels;
+    }
+
+    public interface ModelsCallback {
+        void onSuccess(List<String> eligibleModels);
+        void onError(String error);
+    }
+
+    public static String pickBestModel(List<String> eligibleList, String tone) {
+        if (eligibleList == null || eligibleList.isEmpty()) {
+            return "llama-3.3-70b-versatile";
+        }
+        boolean needsReasoning = tone != null && (tone.toLowerCase().contains("think")
+                || tone.toLowerCase().contains("🧠")
+                || tone.toLowerCase().contains("formal")
+                || tone.toLowerCase().contains("💼"));
+
+        if (needsReasoning) {
+            for (String m : eligibleList) {
+                String mLower = m.toLowerCase();
+                if (mLower.contains("120b") || mLower.contains("70b") || mLower.contains("versatile") || mLower.contains("reason")) {
+                    return m;
+                }
             }
         }
+
+        // Prefer fast chat models for instant typing responsiveness
+        for (String m : eligibleList) {
+            String mLower = m.toLowerCase();
+            if (mLower.contains("8b") || mLower.contains("20b") || mLower.contains("mini") || mLower.contains("instant") || mLower.contains("turbo")) {
+                return m;
+            }
+        }
+
+        return eligibleList.get(0);
+    }
+
+    public static String resolveModel(String model, String tone, boolean hasDraft) {
+        if (model == null || model.isEmpty() || "auto-smart".equalsIgnoreCase(model) || "auto".equalsIgnoreCase(model)) {
+            if (!cachedEligibleModels.isEmpty()) {
+                return pickBestModel(cachedEligibleModels, tone);
+            }
+            return "llama-3.3-70b-versatile";
+        }
+
+        // If the model is an outdated decommissioned identifier, gracefully fall back to best eligible model
+        String mLower = model.toLowerCase();
+        if (mLower.contains("deepseek-r1-distill") || mLower.contains("llama-3.1-8b-instant")) {
+            if (!cachedEligibleModels.isEmpty()) {
+                return pickBestModel(cachedEligibleModels, tone);
+            }
+            return "llama-3.3-70b-versatile";
+        }
+
         return model.trim();
+    }
+
+    public void fetchEligibleModels(String apiKey, ModelsCallback callback) {
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+            mainHandler.post(() -> callback.onError("No Groq API key configured"));
+            return;
+        }
+
+        executor.execute(() -> {
+            try {
+                List<String> models = fetchEligibleModelsSync(apiKey);
+                if (models != null && !models.isEmpty()) {
+                    setCachedEligibleModels(models);
+                    mainHandler.post(() -> callback.onSuccess(models));
+                } else {
+                    mainHandler.post(() -> callback.onError("No eligible chat models found on your Groq account"));
+                }
+            } catch (Exception e) {
+                mainHandler.post(() -> callback.onError(e.getMessage() != null ? e.getMessage() : "Error fetching models"));
+            }
+        });
+    }
+
+    private List<String> fetchEligibleModelsSync(String apiKey) throws Exception {
+        Request request = new Request.Builder()
+                .url("https://api.groq.com/openai/v1/models")
+                .header("Authorization", "Bearer " + apiKey.trim())
+                .header("Content-Type", "application/json")
+                .get()
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String respBody = response.body() != null ? response.body().string() : "";
+            if (!response.isSuccessful()) {
+                String errMsg = "Groq HTTP " + response.code();
+                try {
+                    JSONObject errJson = new JSONObject(respBody);
+                    if (errJson.has("error")) {
+                        errMsg = errJson.getJSONObject("error").optString("message", errMsg);
+                    }
+                } catch (Exception ignored) {}
+                throw new Exception(errMsg);
+            }
+
+            JSONObject root = new JSONObject(respBody);
+            JSONArray data = root.optJSONArray("data");
+            List<String> eligible = new ArrayList<>();
+            if (data != null) {
+                for (int i = 0; i < data.length(); i++) {
+                    JSONObject item = data.getJSONObject(i);
+                    boolean active = item.optBoolean("active", true);
+                    if (!active) continue;
+                    String id = item.optString("id", "").trim();
+                    if (id.isEmpty()) continue;
+                    String idLower = id.toLowerCase();
+                    if (idLower.contains("whisper")
+                            || idLower.contains("guard")
+                            || idLower.contains("safeguard")
+                            || idLower.contains("tts")
+                            || idLower.contains("moderation")
+                            || idLower.contains("embedding")) {
+                        continue;
+                    }
+                    eligible.add(id);
+                }
+            }
+            if (!eligible.isEmpty()) {
+                setCachedEligibleModels(eligible);
+            }
+            return eligible;
+        }
     }
 
     public void generateReplies(String apiKey, String model, String tone, String context, String draft, Callback callback) {
@@ -88,6 +211,43 @@ public class GroqClient {
                                 errMsg = errJson.getJSONObject("error").optString("message", errMsg);
                             }
                         } catch (Exception ignored) {}
+
+                        // If model is decommissioned or not accessible, self-heal: fetch eligible models and retry with active model
+                        String errLower = errMsg.toLowerCase();
+                        boolean isModelIneligible = errLower.contains("does not exist")
+                                || errLower.contains("not have access")
+                                || errLower.contains("decommissioned")
+                                || errLower.contains("no longer supported");
+
+                        if (isModelIneligible) {
+                            try {
+                                List<String> fresh = fetchEligibleModelsSync(apiKey);
+                                if (fresh != null && !fresh.isEmpty()) {
+                                    String retryModel = pickBestModel(fresh, tone);
+                                    if (!retryModel.equalsIgnoreCase(resolved)) {
+                                        JSONObject retryPayload = buildPayload(retryModel, tone, context, draft, language);
+                                        RequestBody retryBody = RequestBody.create(retryPayload.toString(), JSON_MEDIA_TYPE);
+                                        Request retryReq = new Request.Builder()
+                                                .url(GROQ_URL)
+                                                .header("Authorization", "Bearer " + apiKey.trim())
+                                                .header("Content-Type", "application/json")
+                                                .post(retryBody)
+                                                .build();
+                                        try (Response retryResp = httpClient.newCall(retryReq).execute()) {
+                                            String retryBodyStr = retryResp.body() != null ? retryResp.body().string() : "";
+                                            if (retryResp.isSuccessful()) {
+                                                List<String> replies = parseReplies(retryBodyStr);
+                                                if (!replies.isEmpty()) {
+                                                    mainHandler.post(() -> callback.onSuccess(replies));
+                                                    return;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (Exception ignored) {}
+                        }
+
                         final String finalErr = errMsg;
                         mainHandler.post(() -> callback.onError(finalErr));
                         return;
@@ -238,7 +398,7 @@ public class GroqClient {
             return;
         }
 
-        String chosenModel = (model != null && !model.trim().isEmpty()) ? model.trim() : "qwen/qwen3.8-27b";
+        String chosenModel = resolveModel(model, "smart", false);
 
         executor.execute(() -> {
             try {
